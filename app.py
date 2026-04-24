@@ -235,6 +235,55 @@ def api_export_csv():
     )
 
 
+@app.route("/api/arxiv/status", methods=["GET"])
+def api_arxiv_status():
+    try:
+        from config import CATEGORIES, KEYWORDS, HOURS_BACK, WHATSAPP_NUMBER
+        lock_file = os.path.join(os.path.dirname(__file__), ".last_run")
+        last_run = None
+        if os.path.exists(lock_file):
+            with open(lock_file) as f:
+                last_run = f.read().strip()
+        masked = "*" * (len(WHATSAPP_NUMBER) - 4) + WHATSAPP_NUMBER[-4:]
+        return jsonify({
+            "categories": CATEGORIES,
+            "keywords": KEYWORDS,
+            "keyword_count": len(KEYWORDS),
+            "hours_back": HOURS_BACK,
+            "whatsapp": masked,
+            "last_run": last_run,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/arxiv/dryrun", methods=["POST"])
+def api_arxiv_dryrun():
+    try:
+        from fetcher import fetch_papers
+        papers = fetch_papers()
+        return jsonify({"papers": papers, "total": len(papers)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/arxiv/logs", methods=["GET"])
+def api_arxiv_logs():
+    log_file = os.path.join(os.path.dirname(__file__), "agent.log")
+    if not os.path.exists(log_file):
+        return jsonify({"lines": [], "exists": False})
+    try:
+        with open(log_file, encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        return jsonify({
+            "lines": [l.rstrip() for l in lines[-60:]],
+            "exists": True,
+            "total": len(lines),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/matrix", methods=["GET"])
 def api_matrix_load():
     filepath = request.args.get("file", "").strip()

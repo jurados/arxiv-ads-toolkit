@@ -211,6 +211,64 @@ header {
   margin-left: 6px; vertical-align: middle;
 }
 
+/* ── arXiv agent panel ──────────────────────────────────── */
+.agent-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px; margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+}
+.stat-card .stat-label {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text2); margin-bottom: 6px;
+}
+.stat-card .stat-value { font-size: 1.2rem; font-weight: 800; color: var(--text); }
+.stat-card .stat-sub { font-size: .78rem; color: var(--text2); margin-top: 2px; }
+.stat-ok   { border-left: 3px solid var(--green); }
+.stat-warn { border-left: 3px solid var(--yellow); }
+.stat-info { border-left: 3px solid var(--accent); }
+
+.kw-section { margin-bottom: 24px; }
+.kw-section-title {
+  font-size: .8rem; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px;
+}
+.agent-paper {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 10px;
+}
+.agent-paper-title { font-size: .92rem; font-weight: 700; margin-bottom: 4px; }
+.agent-paper-title a { color: var(--text); }
+.agent-paper-title a:hover { color: var(--accent); text-decoration: none; }
+.agent-paper-meta { font-size: .75rem; color: var(--text2); margin-bottom: 8px; }
+.agent-paper-abstract {
+  font-size: .82rem; color: var(--text2); line-height: 1.6;
+  max-height: 72px; overflow: hidden; transition: max-height .3s; position: relative;
+}
+.agent-paper-abstract.expanded { max-height: 600px; }
+.agent-paper-abstract::after {
+  content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 24px;
+  background: linear-gradient(transparent, var(--card-bg)); pointer-events: none;
+}
+.agent-paper-abstract.expanded::after { opacity: 0; }
+.logs-box {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: .78rem; color: var(--text2); max-height: 280px; overflow-y: auto;
+  line-height: 1.7; white-space: pre-wrap; word-break: break-all;
+}
+.log-ok    { color: var(--green); }
+.log-warn  { color: var(--yellow); }
+.log-error { color: var(--red); }
+.section-divider {
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text2); margin: 28px 0 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
 /* ── States ─────────────────────────────────────────────── */
 .state-empty { text-align: center; padding: 60px 20px; color: var(--text2); }
 .state-empty .icon { font-size: 2.5rem; margin-bottom: 12px; }
@@ -353,7 +411,11 @@ table.matrix td.cell-abstract {
 
   <!-- SIDEBAR -->
   <nav class="sidebar">
-    <div class="sidebar-label" data-i18n="nav_ads">NASA ADS</div>
+    <div class="sidebar-label" data-i18n="nav_section_agent">Agente</div>
+    <div class="nav-item" data-panel="agent" onclick="showPanel('agent')">
+      <span class="icon">🔭</span><span data-i18n="nav_agent">arXiv Diario</span>
+    </div>
+    <div class="sidebar-label" style="margin-top:6px" data-i18n="nav_ads">NASA ADS</div>
     <div class="nav-item active" data-panel="search" onclick="showPanel('search')">
       <span class="icon">🔍</span><span data-i18n="nav_search">Buscar Autor</span>
     </div>
@@ -383,6 +445,30 @@ table.matrix td.cell-abstract {
 
   <!-- MAIN -->
   <main class="main">
+
+    <!-- ARXIV AGENT -->
+    <div class="panel" id="panel-agent">
+      <div class="panel-title" data-i18n="agent_title">Agente arXiv Diario</div>
+      <div class="panel-desc" data-i18n="agent_desc">Estado del agente, dry-run y logs. No envía nada a WhatsApp.</div>
+
+      <div id="agent-status-area">
+        <div class="state-loading"><div class="spinner"></div></div>
+      </div>
+
+      <div class="section-divider" data-i18n="agent_section_dryrun">Dry-run — papers de hoy</div>
+      <button class="btn-run" onclick="runDryRun()" id="btn-dryrun">
+        <span>▶</span><span data-i18n="agent_btn_run">Buscar papers ahora</span>
+      </button>
+      <div id="agent-dryrun-results"></div>
+
+      <div class="section-divider" style="margin-top:32px">
+        <span data-i18n="agent_section_logs">Logs</span>
+        <button class="toggle-abstract" style="margin-left:8px" onclick="loadLogs()" data-i18n="btn_refresh">Refrescar</button>
+      </div>
+      <div id="agent-logs-area">
+        <div class="state-loading"><div class="spinner"></div></div>
+      </div>
+    </div>
 
     <!-- SEARCH -->
     <div class="panel active" id="panel-search">
@@ -623,6 +709,8 @@ function loadPrefs() {
 /* ── i18n ────────────────────────────────────────────────── */
 const STRINGS = {
   es: {
+    nav_section_agent: "Agente",
+    nav_agent: "arXiv Diario",
     nav_ads: "NASA ADS",
     nav_search: "Buscar Autor",
     nav_topics: "Por Concepto",
@@ -648,6 +736,22 @@ const STRINGS = {
     chain_desc: "Rastrea referencias nivel por nivel desde un paper semilla.",
     dl_title: "Descargar PDF",
     dl_desc: "Descarga el PDF de un paper via los links open-access de NASA ADS. Prioriza arXiv.",
+    agent_title: "Agente arXiv Diario",
+    agent_desc: "Estado del agente, dry-run y logs. No envía nada a WhatsApp.",
+    agent_section_dryrun: "Dry-run — papers de hoy",
+    agent_btn_run: "Buscar papers ahora",
+    agent_section_logs: "Logs",
+    btn_refresh: "Refrescar",
+    agent_last_run: "Último envío",
+    agent_never: "Nunca",
+    agent_today: "Hoy ✓",
+    agent_keywords: "Keywords activos",
+    agent_categories: "Categorías",
+    agent_hours: "Ventana de tiempo",
+    agent_whatsapp: "WhatsApp destino",
+    agent_no_papers: "No hay papers nuevos en las últimas",
+    agent_hours_unit: "horas con los keywords actuales.",
+    agent_no_logs: "No hay archivo agent.log todavía.",
     matrix_title: "Matriz de Literatura",
     matrix_desc: "Carga un CSV de tu matriz para visualizar, filtrar y editar las columnas de anotación.",
     label_matrix_file: "Ruta del archivo CSV",
@@ -712,6 +816,8 @@ const STRINGS = {
     show_original: "Ver original",
   },
   en: {
+    nav_section_agent: "Agent",
+    nav_agent: "arXiv Daily",
     nav_ads: "NASA ADS",
     nav_search: "Author Search",
     nav_topics: "By Concept",
@@ -737,6 +843,22 @@ const STRINGS = {
     chain_desc: "Traces references level by level from a seed paper.",
     dl_title: "Download PDF",
     dl_desc: "Downloads the PDF via NASA ADS open-access links. Prioritizes arXiv.",
+    agent_title: "arXiv Daily Agent",
+    agent_desc: "Agent status, dry-run and logs. Does not send anything to WhatsApp.",
+    agent_section_dryrun: "Dry-run — today's papers",
+    agent_btn_run: "Fetch papers now",
+    agent_section_logs: "Logs",
+    btn_refresh: "Refresh",
+    agent_last_run: "Last sent",
+    agent_never: "Never",
+    agent_today: "Today ✓",
+    agent_keywords: "Active keywords",
+    agent_categories: "Categories",
+    agent_hours: "Time window",
+    agent_whatsapp: "WhatsApp target",
+    agent_no_papers: "No new papers in the last",
+    agent_hours_unit: "hours with current keywords.",
+    agent_no_logs: "No agent.log file yet.",
     matrix_title: "Literature Matrix",
     matrix_desc: "Load a CSV matrix to view, filter and edit annotation columns.",
     label_matrix_file: "CSV file path",
@@ -842,6 +964,7 @@ function showPanel(name) {
   document.getElementById("panel-" + name).classList.add("active");
   document.querySelector(`[data-panel="${name}"]`).classList.add("active");
   currentPapers = [];
+  if (name === "agent") { loadAgentStatus(); loadLogs(); }
 }
 
 /* ── Similar mode ───────────────────────────────────────── */
@@ -1104,6 +1227,117 @@ async function runDownload() {
       </a>
     </div>`;
   } catch(e) { renderState(el, "error", e.message); }
+}
+
+/* ── arXiv Agent panel ──────────────────────────────────── */
+async function loadAgentStatus() {
+  const el = document.getElementById("agent-status-area");
+  try {
+    const res = await fetch("/api/arxiv/status");
+    const d = await res.json();
+    if (d.error) { el.innerHTML = `<div class="state-error">❌ ${escHtml(d.error)}</div>`; return; }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const lastRun = d.last_run || null;
+    const lastRunLabel = !lastRun ? t("agent_never")
+      : lastRun === today ? t("agent_today")
+      : lastRun;
+    const statusClass = !lastRun ? "stat-warn" : lastRun === today ? "stat-ok" : "stat-info";
+
+    // Group keywords by rough category
+    const kwHtml = d.keywords.map(k => `<span class="kw-chip">${escHtml(k)}</span>`).join("");
+
+    el.innerHTML = `
+      <div class="agent-grid">
+        <div class="stat-card ${statusClass}">
+          <div class="stat-label">${t("agent_last_run")}</div>
+          <div class="stat-value">${lastRunLabel}</div>
+        </div>
+        <div class="stat-card stat-info">
+          <div class="stat-label">${t("agent_keywords")}</div>
+          <div class="stat-value">${d.keyword_count}</div>
+        </div>
+        <div class="stat-card stat-info">
+          <div class="stat-label">${t("agent_hours")}</div>
+          <div class="stat-value">${d.hours_back}h</div>
+          <div class="stat-sub">hacia atrás</div>
+        </div>
+        <div class="stat-card stat-info">
+          <div class="stat-label">${t("agent_whatsapp")}</div>
+          <div class="stat-value" style="font-size:.95rem">${escHtml(d.whatsapp)}</div>
+        </div>
+      </div>
+      <div class="kw-section">
+        <div class="kw-section-title">${t("agent_categories")}: ${d.categories.join(" · ")}</div>
+        <div class="keywords-row">${kwHtml}</div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function runDryRun() {
+  const el = document.getElementById("agent-dryrun-results");
+  const btn = document.getElementById("btn-dryrun");
+  btn.disabled = true;
+  el.innerHTML = `<div class="state-loading" style="padding:30px 0"><div class="spinner"></div></div>`;
+  try {
+    const res = await fetch("/api/arxiv/dryrun", { method: "POST" });
+    const d = await res.json();
+    if (d.error) { el.innerHTML = `<div class="state-error">❌ ${escHtml(d.error)}</div>`; btn.disabled = false; return; }
+
+    if (!d.papers || d.papers.length === 0) {
+      el.innerHTML = `<div class="state-empty"><div class="icon">🔭</div>
+        ${t("agent_no_papers")} ${d.hours_back || "24"} ${t("agent_hours_unit")}</div>`;
+      btn.disabled = false; return;
+    }
+
+    let html = `<div class="results-header">
+      <span class="results-count"><strong>${d.total}</strong> paper(s)</span>
+    </div>`;
+    d.papers.forEach((p, i) => {
+      const authors = Array.isArray(p.authors) ? p.authors.slice(0,3).join(", ") + (p.authors.length > 3 ? ` +${p.authors.length-3}` : "") : "";
+      html += `<div class="agent-paper">
+        <div class="agent-paper-title">
+          <a href="${escHtml(p.url)}" target="_blank">${escHtml(p.title)}</a>
+        </div>
+        <div class="agent-paper-meta">${escHtml(authors)} · ${escHtml(p.published)}</div>
+        <div class="agent-paper-abstract" id="agabs-${i}">${escHtml(p.abstract || "")}</div>
+        <button class="toggle-abstract" onclick="toggleAgAbs(${i})">${t("expand")}</button>
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
+  btn.disabled = false;
+}
+
+function toggleAgAbs(i) {
+  const el = document.getElementById("agabs-" + i);
+  const btn = el.nextElementSibling;
+  el.classList.toggle("expanded");
+  btn.textContent = el.classList.contains("expanded") ? t("collapse") : t("expand");
+}
+
+async function loadLogs() {
+  const el = document.getElementById("agent-logs-area");
+  el.innerHTML = `<div class="state-loading" style="padding:20px 0"><div class="spinner"></div></div>`;
+  try {
+    const res = await fetch("/api/arxiv/logs");
+    const d = await res.json();
+    if (!d.exists || !d.lines.length) {
+      el.innerHTML = `<div class="state-empty" style="padding:20px">${t("agent_no_logs")}</div>`;
+      return;
+    }
+    const lines = d.lines.map(l => {
+      const cls = /error|fail|✗/i.test(l) ? "log-error"
+                : /enviado|ok|✓|success/i.test(l) ? "log-ok"
+                : /warning|omitiendo/i.test(l) ? "log-warn" : "";
+      return cls ? `<span class="${cls}">${escHtml(l)}</span>` : escHtml(l);
+    }).join("\n");
+    el.innerHTML = `<div class="logs-box">${lines}</div>
+      <div style="font-size:.72rem;color:var(--text2);margin-top:6px">${d.total} líneas totales · mostrando últimas ${d.lines.length}</div>`;
+    el.querySelector(".logs-box").scrollTop = 9999;
+  } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
 }
 
 /* ── Matrix viewer ──────────────────────────────────────── */
