@@ -19,6 +19,7 @@ arxiv-agent/
 ├── ads_citations.py   # Ver quién cita un paper
 ├── ads_similar.py     # Encontrar papers similares
 ├── ads_chain.py       # Cadena de referencias multinivel
+├── ads_download.py    # Descargar PDFs de acceso abierto
 ├── exporter.py        # Módulo compartido de exportación CSV
 ├── requirements.txt   # Dependencias Python
 ├── .env               # API keys (privado, nunca subir a git)
@@ -38,6 +39,7 @@ arxiv-agent/
 | `ads-citations` | Ver quién cita un paper |
 | `ads-similar` | Encontrar papers similares |
 | `ads-chain` | Cadena de referencias multinivel |
+| `ads-download` | Descargar PDFs de acceso abierto |
 
 ---
 
@@ -287,6 +289,63 @@ ads-similar --file mi_abstract.txt --export mi_matriz.csv
 ads-chain "bibcode_seminal" --levels 3 --export mi_matriz.csv
 
 # Abrir en Excel / Google Sheets y completar las columnas vacías
+```
+
+---
+
+### `ads-download` — Descargar PDFs de acceso abierto
+
+Dado un bibcode o ID de arXiv, descarga el PDF usando los links de acceso abierto de NASA ADS. Prioriza arXiv (siempre gratuito) sobre otras fuentes. También puede descargar todos los papers de un CSV.
+
+```bash
+# Paper individual por bibcode
+ads-download "2022AJ....164..195F"
+
+# Paper individual por arXiv ID
+ads-download "2208.04310"
+
+# Elegir directorio de descarga
+ads-download "2022AJ....164..195F" --dir ~/papers
+
+# Descargar todos los papers de la matriz
+ads-download --from-csv mi_matriz.csv
+
+# Descargar matriz en un directorio específico
+ads-download --from-csv mi_matriz.csv --dir ~/papers/matriz
+```
+
+**Prioridad de fuentes (de más a menos confiable):**
+
+| Fuente | Tipo | Acceso |
+|---|---|---|
+| `EPRINT_PDF` | arXiv PDF | Siempre gratuito |
+| `ADS_PDF` | PDF alojado en ADS | Gratuito |
+| `ADS_SCAN` | Escaneo digitalizado | Gratuito |
+| `PUB_PDF` | PDF del publisher | Puede requerir suscripción |
+
+**Nombre de archivo generado:** `YYYY_PrimerApellido_PrimeraPalabraTitulo.pdf`
+
+Ejemplo: `2022_Frster_DELIGHT.pdf`
+
+**Verificación de paywall:** si la respuesta no empieza con `%PDF`, el archivo se descarta (evita guardar páginas HTML de error).
+
+**Opciones:**
+
+| Opción | Default | Descripción |
+|---|---|---|
+| `--dir` | `~/Downloads` | Directorio de descarga |
+| `--from-csv` | — | Descargar todos los papers de un CSV |
+
+**Ejemplos reales:**
+```bash
+ads-download "2022AJ....164..195F"
+# Directorio de descarga: /home/jurados/Downloads
+#   ↓ [EPRINT_PDF] DELIGHT: Deep Learning Identification of Galaxy Hosts o
+#   ✓ Guardado: 2022_Förster_DELIGHT.pdf (2276 KB)
+
+ads-download "2301.07688" --dir /tmp/papers
+#   ↓ [EPRINT_PDF] The Eighteenth Data Release of the Sloan Digital Sky Su
+#   ✓ Guardado: 2023_Almeida_Eighteenth.pdf (2581 KB)
 ```
 
 ---

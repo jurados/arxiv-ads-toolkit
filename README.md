@@ -13,6 +13,7 @@ A set of tools for astronomers to monitor new papers and build literature matric
 | `ads-citations` | Find all papers that cite a given work |
 | `ads-similar` | Find papers similar to a bibcode or text paragraph |
 | `ads-chain` | Trace reference chains across multiple levels |
+| `ads-download` | Download open-access PDFs (arXiv, ADS, publisher) |
 
 All NASA ADS tools support `--export matrix.csv` to build a literature matrix incrementally.
 
@@ -44,6 +45,7 @@ alias ads-references="/path/to/arxiv-ads-toolkit/ads_references.py"
 alias ads-citations="/path/to/arxiv-ads-toolkit/ads_citations.py"
 alias ads-similar="/path/to/arxiv-ads-toolkit/ads_similar.py"
 alias ads-chain="/path/to/arxiv-ads-toolkit/ads_chain.py"
+alias ads-download="/path/to/arxiv-ads-toolkit/ads_download.py"
 ```
 
 ---
@@ -115,6 +117,17 @@ ads-chain "2022AJ....164..195F"                            # 2 levels (default)
 ads-chain "2022AJ....164..195F" --levels 3 --max-per-level 10
 ads-chain "2022AJ....164..195F" --levels 3 --export chain.csv
 ```
+
+**Download open-access PDFs:**
+```bash
+ads-download "2022AJ....164..195F"                         # single paper
+ads-download "2208.04310"                                  # by arXiv ID
+ads-download "2022AJ....164..195F" --dir ~/papers          # custom dir
+ads-download --from-csv matrix.csv                         # batch from CSV
+ads-download --from-csv matrix.csv --dir ~/papers/matrix   # batch + custom dir
+```
+
+Prioritizes arXiv PDF (always free) > ADS hosted PDF > ADS scan > publisher PDF. Filenames follow the pattern `YYYY_LastName_FirstWord.pdf`.
 
 ---
 
