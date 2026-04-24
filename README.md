@@ -6,6 +6,7 @@ A set of tools for astronomers to monitor new papers and build literature matric
 
 | Tool | Description |
 |---|---|
+| **Web interface** | Browser UI for all NASA ADS tools — dark/light mode, ES/EN toggle, abstract translation |
 | **arXiv Daily Agent** | Monitors arXiv daily and sends new papers via WhatsApp (translated to Spanish) |
 | `ads-search` | Search NASA ADS papers by author |
 | `ads-topics` | Search NASA ADS papers by keyword or phrase |
@@ -15,7 +16,20 @@ A set of tools for astronomers to monitor new papers and build literature matric
 | `ads-chain` | Trace reference chains across multiple levels |
 | `ads-download` | Download open-access PDFs (arXiv, ADS, publisher) |
 
-All NASA ADS tools support `--export matrix.csv` to build a literature matrix incrementally.
+All NASA ADS tools are available both from the command line and from the web interface. They support `--export matrix.csv` to build a literature matrix incrementally.
+
+---
+
+## Web Interface
+
+All tools are available as a local web app:
+
+```bash
+/home/jurados/arxiv-agent/run_web.sh
+# Open: http://localhost:5000
+```
+
+Features: dark/light mode toggle · ES/EN language toggle · one-click abstract translation (Google Translate) · CSV export · PDF download directly from the browser.
 
 ---
 

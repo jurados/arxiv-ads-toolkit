@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark" data-lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arXiv Agent · NASA ADS Toolkit</title>
+<style>
+/* ── Variables ──────────────────────────────────────────── */
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #21262d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #1f6feb;
+  --green: #3fb950;
+  --yellow: #d29922;
+  --red: #f85149;
+  --purple: #bc8cff;
+  --card-bg: #161b22;
+  --input-bg: #0d1117;
+  --shadow: 0 4px 24px rgba(0,0,0,.4);
+}
+[data-theme="light"] {
+  --bg: #f6f8fa;
+  --bg2: #ffffff;
+  --bg3: #f0f2f5;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text2: #57606a;
+  --accent: #0969da;
+  --accent2: #0550ae;
+  --green: #1a7f37;
+  --yellow: #9a6700;
+  --red: #cf222e;
+  --purple: #7c3aed;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --shadow: 0 4px 24px rgba(0,0,0,.1);
+}
+
+/* ── Reset & Base ───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  transition: background .2s, color .2s; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Header ─────────────────────────────────────────────── */
+header {
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 0 24px; height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; }
+.logo svg { width: 28px; height: 28px; }
+.header-controls { display: flex; align-items: center; gap: 8px; }
+
+/* ── Toggle buttons ─────────────────────────────────────── */
+.toggle-btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: .82rem;
+  font-weight: 600; transition: all .15s; letter-spacing: .03em;
+}
+.toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Layout ─────────────────────────────────────────────── */
+.app { display: flex; height: calc(100vh - 56px); }
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  padding: 16px 0; overflow-y: auto;
+}
+.sidebar-label {
+  font-size: .7rem; font-weight: 700; letter-spacing: .08em;
+  color: var(--text2); text-transform: uppercase; padding: 8px 20px 4px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 20px; cursor: pointer; font-size: .88rem;
+  color: var(--text2); border-left: 3px solid transparent;
+  transition: all .12s;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active {
+  background: var(--bg3); color: var(--accent);
+  border-left-color: var(--accent); font-weight: 600;
+}
+.nav-item .icon { font-size: 1rem; width: 20px; text-align: center; }
+
+/* ── Main content ───────────────────────────────────────── */
+.main { flex: 1; overflow-y: auto; padding: 28px 32px; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+.panel-title {
+  font-size: 1.3rem; font-weight: 700; margin-bottom: 4px;
+}
+.panel-desc { color: var(--text2); font-size: .9rem; margin-bottom: 24px; }
+
+/* ── Forms ──────────────────────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group label { font-size: .8rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; }
+.form-group input, .form-group select, .form-group textarea {
+  background: var(--input-bg); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: .9rem;
+  transition: border-color .15s; outline: none; font-family: inherit;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--accent);
+}
+.form-group textarea { resize: vertical; min-height: 80px; }
+.form-group.full { grid-column: 1 / -1; }
+.hint { font-size: .75rem; color: var(--text2); margin-top: 2px; }
+
+.mode-switch { display: flex; gap: 6px; }
+.mode-btn {
+  padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; font-size: .82rem; background: var(--bg3); color: var(--text2);
+  font-weight: 600; transition: all .12s;
+}
+.mode-btn.active { background: var(--accent2); border-color: var(--accent); color: #fff; }
+
+.btn-run {
+  margin-top: 18px; padding: 10px 26px; background: var(--accent2);
+  border: none; border-radius: 6px; color: #fff; font-size: .9rem;
+  font-weight: 700; cursor: pointer; transition: background .15s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-run:hover { background: var(--accent); }
+.btn-run:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Results ────────────────────────────────────────────── */
+.results-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 28px 0 14px; flex-wrap: wrap; gap: 10px;
+}
+.results-count { font-size: .9rem; color: var(--text2); }
+.results-count strong { color: var(--text); }
+
+.btn-export {
+  padding: 7px 16px; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text2); border-radius: 6px; cursor: pointer; font-size: .82rem;
+  font-weight: 600; transition: all .15s; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-export:hover { border-color: var(--green); color: var(--green); }
+
+.papers-list { display: flex; flex-direction: column; gap: 14px; }
+
+.paper-card {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px 20px; transition: border-color .15s; box-shadow: var(--shadow);
+}
+.paper-card:hover { border-color: var(--accent); }
+
+.paper-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.paper-title { font-size: .95rem; font-weight: 700; line-height: 1.4; }
+.paper-title a { color: var(--text); }
+.paper-title a:hover { color: var(--accent); text-decoration: none; }
+.paper-badges { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+.badge {
+  font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.badge-year { background: #1f3d6e; color: #79c0ff; }
+[data-theme="light"] .badge-year { background: #dbeafe; color: #1d4ed8; }
+.badge-type { background: #1f3d2d; color: #7ee787; }
+[data-theme="light"] .badge-type { background: #dcfce7; color: #15803d; }
+.badge-level { background: #3d2a5a; color: var(--purple); }
+[data-theme="light"] .badge-level { background: #ede9fe; color: #6d28d9; }
+
+.paper-authors { font-size: .8rem; color: var(--text2); margin-bottom: 8px; }
+.paper-abstract {
+  font-size: .83rem; color: var(--text2); line-height: 1.6;
+  max-height: 80px; overflow: hidden; position: relative; transition: max-height .3s;
+}
+.paper-abstract.expanded { max-height: 1000px; }
+.paper-abstract::after {
+  content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 28px;
+  background: linear-gradient(transparent, var(--card-bg));
+  pointer-events: none; transition: opacity .3s;
+}
+.paper-abstract.expanded::after { opacity: 0; }
+.toggle-abstract {
+  font-size: .75rem; color: var(--accent); cursor: pointer; margin-top: 4px;
+  background: none; border: none; padding: 0; font-family: inherit;
+}
+.toggle-abstract:hover { text-decoration: underline; }
+.paper-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.link-ads {
+  font-size: .75rem; color: var(--accent); display: inline-flex; align-items: center; gap: 4px;
+}
+.btn-translate {
+  font-size: .72rem; color: var(--text2); background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 3px 9px; cursor: pointer; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 4px; transition: all .15s;
+}
+.btn-translate:hover { border-color: var(--yellow); color: var(--yellow); }
+.btn-translate:disabled { opacity: .5; cursor: not-allowed; }
+.translated-badge {
+  font-size: .68rem; color: var(--green); background: rgba(63,185,80,.1);
+  border: 1px solid rgba(63,185,80,.3); border-radius: 4px; padding: 1px 6px;
+  margin-left: 6px; vertical-align: middle;
+}
+
+/* ── States ─────────────────────────────────────────────── */
+.state-empty { text-align: center; padding: 60px 20px; color: var(--text2); }
+.state-empty .icon { font-size: 2.5rem; margin-bottom: 12px; }
+.state-loading { text-align: center; padding: 60px 20px; color: var(--text2); }
+.spinner {
+  width: 36px; height: 36px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .7s linear infinite; margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.state-error {
+  background: #2d1117; border: 1px solid var(--red);
+  border-radius: 8px; padding: 14px 18px; color: var(--red); font-size: .88rem;
+  margin-top: 20px;
+}
+[data-theme="light"] .state-error { background: #fff0f0; }
+
+/* ── Keywords chip ──────────────────────────────────────── */
+.keywords-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.kw-chip {
+  font-size: .73rem; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 20px; padding: 2px 10px; color: var(--text2);
+}
+
+/* ── Download panel ─────────────────────────────────────── */
+.download-result {
+  margin-top: 20px; background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px; text-align: center;
+}
+.download-result .big-icon { font-size: 2.5rem; margin-bottom: 8px; }
+.download-result .dl-name { font-size: .9rem; font-weight: 600; margin-bottom: 12px; }
+.btn-dl {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 24px; background: var(--green); border: none;
+  border-radius: 6px; color: #fff; font-weight: 700; cursor: pointer; font-size: .9rem;
+}
+[data-theme="light"] .btn-dl { color: #fff; }
+.btn-dl:hover { opacity: .9; }
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar { width: 56px; }
+  .sidebar-label, .nav-item span { display: none; }
+  .nav-item { justify-content: center; padding: 12px; }
+  .main { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 28 28" fill="none">
+      <circle cx="14" cy="14" r="13" stroke="var(--accent)" stroke-width="1.5"/>
+      <circle cx="14" cy="14" r="5" fill="var(--accent)" opacity=".9"/>
+      <ellipse cx="14" cy="14" rx="13" ry="5" stroke="var(--accent)" stroke-width="1.2" opacity=".5"/>
+    </svg>
+    <span>arXiv Agent <span style="color:var(--text2);font-weight:400">· NASA ADS</span></span>
+  </div>
+  <div class="header-controls">
+    <button class="toggle-btn" id="langToggle" onclick="toggleLang()">EN</button>
+    <button class="toggle-btn" id="themeToggle" onclick="toggleTheme()">☀️</button>
+  </div>
+</header>
+
+<!-- APP LAYOUT -->
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-label" data-i18n="nav_ads">NASA ADS</div>
+    <div class="nav-item active" data-panel="search" onclick="showPanel('search')">
+      <span class="icon">🔍</span><span data-i18n="nav_search">Buscar Autor</span>
+    </div>
+    <div class="nav-item" data-panel="topics" onclick="showPanel('topics')">
+      <span class="icon">💡</span><span data-i18n="nav_topics">Por Concepto</span>
+    </div>
+    <div class="nav-item" data-panel="references" onclick="showPanel('references')">
+      <span class="icon">📚</span><span data-i18n="nav_refs">Referencias</span>
+    </div>
+    <div class="nav-item" data-panel="citations" onclick="showPanel('citations')">
+      <span class="icon">🔗</span><span data-i18n="nav_cits">Citaciones</span>
+    </div>
+    <div class="nav-item" data-panel="similar" onclick="showPanel('similar')">
+      <span class="icon">🌐</span><span data-i18n="nav_sim">Similares</span>
+    </div>
+    <div class="nav-item" data-panel="chain" onclick="showPanel('chain')">
+      <span class="icon">⛓️</span><span data-i18n="nav_chain">Cadena</span>
+    </div>
+    <div class="nav-item" data-panel="download" onclick="showPanel('download')">
+      <span class="icon">⬇️</span><span data-i18n="nav_dl">Descargar PDF</span>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- SEARCH -->
+    <div class="panel active" id="panel-search">
+      <div class="panel-title" data-i18n="search_title">Buscar por Autor</div>
+      <div class="panel-desc" data-i18n="search_desc">Encuentra artículos, tesis y libros de un autor en NASA ADS.</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label data-i18n="label_author">Autor</label>
+          <input type="text" id="search-author" placeholder='Forster, Francisco' />
+          <span class="hint" data-i18n="hint_author">Formato: "Apellido, Nombre"</span>
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_year">Año / Rango</label>
+          <input type="text" id="search-year" placeholder="2020-2025" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_rows">Resultados máx.</label>
+          <input type="number" id="search-rows" value="50" min="1" max="500" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_first_author">Primer autor</label>
+          <select id="search-first-author">
+            <option value="false" data-i18n="opt_any">Cualquier posición</option>
+            <option value="true" data-i18n="opt_first">Solo primer autor</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-run" onclick="runSearch()">
+        <span>▶</span><span data-i18n="btn_run">Ejecutar</span>
+      </button>
+      <div id="search-results"></div>
+    </div>
+
+    <!-- TOPICS -->
+    <div class="panel" id="panel-topics">
+      <div class="panel-title" data-i18n="topics_title">Buscar por Concepto</div>
+      <div class="panel-desc" data-i18n="topics_desc">Busca una frase exacta en título y/o abstract.</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label data-i18n="label_keywords">Palabras clave / Frase</label>
+          <input type="text" id="topics-keywords" placeholder="supernova classification" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_field">Campo de búsqueda</label>
+          <select id="topics-field">
+            <option value="all" data-i18n="opt_all">Título y abstract</option>
+            <option value="title" data-i18n="opt_title">Solo título</option>
+            <option value="abstract" data-i18n="opt_abstract">Solo abstract</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_year">Año / Rango</label>
+          <input type="text" id="topics-year" placeholder="2022-2025" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_rows">Resultados máx.</label>
+          <input type="number" id="topics-rows" value="20" min="1" max="200" />
+        </div>
+      </div>
+      <button class="btn-run" onclick="runTopics()">
+        <span>▶</span><span data-i18n="btn_run">Ejecutar</span>
+      </button>
+      <div id="topics-results"></div>
+    </div>
+
+    <!-- REFERENCES -->
+    <div class="panel" id="panel-references">
+      <div class="panel-title" data-i18n="refs_title">Referencias de un Paper</div>
+      <div class="panel-desc" data-i18n="refs_desc">Muestra todos los papers que un trabajo cita (hacia atrás).</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label data-i18n="label_id">Bibcode o arXiv ID</label>
+          <input type="text" id="refs-id" placeholder="2022AJ....164..195F  ó  2208.04310" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_year">Año / Rango</label>
+          <input type="text" id="refs-year" placeholder="2018-2022" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_rows">Resultados máx.</label>
+          <input type="number" id="refs-rows" value="100" min="1" max="500" />
+        </div>
+      </div>
+      <button class="btn-run" onclick="runRefs()">
+        <span>▶</span><span data-i18n="btn_run">Ejecutar</span>
+      </button>
+      <div id="refs-results"></div>
+    </div>
+
+    <!-- CITATIONS -->
+    <div class="panel" id="panel-citations">
+      <div class="panel-title" data-i18n="cits_title">Citaciones de un Paper</div>
+      <div class="panel-desc" data-i18n="cits_desc">Muestra todos los papers que citan este trabajo (hacia adelante).</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label data-i18n="label_id">Bibcode o arXiv ID</label>
+          <input type="text" id="cits-id" placeholder="2022AJ....164..195F  ó  2208.04310" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_year">Año / Rango</label>
+          <input type="text" id="cits-year" placeholder="2023-2026" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_rows">Resultados máx.</label>
+          <input type="number" id="cits-rows" value="100" min="1" max="500" />
+        </div>
+      </div>
+      <button class="btn-run" onclick="runCits()">
+        <span>▶</span><span data-i18n="btn_run">Ejecutar</span>
+      </button>
+      <div id="cits-results"></div>
+    </div>
+
+    <!-- SIMILAR -->
+    <div class="panel" id="panel-similar">
+      <div class="panel-title" data-i18n="sim_title">Papers Similares</div>
+      <div class="panel-desc" data-i18n="sim_desc">Similitud semántica (por bibcode) o búsqueda por texto libre.</div>
+      <div class="mode-switch" style="margin-bottom:16px">
+        <button class="mode-btn active" id="sim-mode-bibcode" onclick="setSimilarMode('bibcode')" data-i18n="mode_bibcode">Bibcode</button>
+        <button class="mode-btn" id="sim-mode-text" onclick="setSimilarMode('text')" data-i18n="mode_text">Texto</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-group full" id="sim-bibcode-group">
+          <label data-i18n="label_id">Bibcode o arXiv ID</label>
+          <input type="text" id="sim-bibcode" placeholder="2022AJ....164..195F" />
+        </div>
+        <div class="form-group full" id="sim-text-group" style="display:none">
+          <label data-i18n="label_text">Texto / Abstract</label>
+          <textarea id="sim-text" placeholder="We use a recurrent neural network to classify supernovae light curves from ZTF..."></textarea>
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_year">Año / Rango</label>
+          <input type="text" id="sim-year" placeholder="2020-2025" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_rows">Resultados máx.</label>
+          <input type="number" id="sim-rows" value="20" min="1" max="100" />
+        </div>
+      </div>
+      <button class="btn-run" onclick="runSimilar()">
+        <span>▶</span><span data-i18n="btn_run">Ejecutar</span>
+      </button>
+      <div id="sim-results"></div>
+    </div>
+
+    <!-- CHAIN -->
+    <div class="panel" id="panel-chain">
+      <div class="panel-title" data-i18n="chain_title">Cadena de Referencias</div>
+      <div class="panel-desc" data-i18n="chain_desc">Rastrea referencias nivel por nivel desde un paper semilla.</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label data-i18n="label_id">Bibcode o arXiv ID (semilla)</label>
+          <input type="text" id="chain-id" placeholder="2022AJ....164..195F" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_levels">Niveles</label>
+          <input type="number" id="chain-levels" value="2" min="1" max="4" />
+          <span class="hint" data-i18n="hint_levels">⚠️ Nivel 3+ puede tardar mucho</span>
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_max_per">Máx. por nivel</label>
+          <input type="number" id="chain-max-per" value="10" min="1" max="50" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_rows">Refs por paper</label>
+          <input type="number" id="chain-rows" value="30" min="5" max="100" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="label_year">Año / Rango</label>
+          <input type="text" id="chain-year" placeholder="2018-2026" />
+        </div>
+      </div>
+      <button class="btn-run" onclick="runChain()">
+        <span>▶</span><span data-i18n="btn_run">Ejecutar</span>
+      </button>
+      <div id="chain-results"></div>
+    </div>
+
+    <!-- DOWNLOAD -->
+    <div class="panel" id="panel-download">
+      <div class="panel-title" data-i18n="dl_title">Descargar PDF</div>
+      <div class="panel-desc" data-i18n="dl_desc">Descarga el PDF de un paper via los links open-access de NASA ADS. Prioriza arXiv.</div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label data-i18n="label_id">Bibcode o arXiv ID</label>
+          <input type="text" id="dl-id" placeholder="2022AJ....164..195F  ó  2208.04310" />
+        </div>
+      </div>
+      <button class="btn-run" onclick="runDownload()">
+        <span>⬇️</span><span data-i18n="dl_btn">Descargar PDF</span>
+      </button>
+      <div id="dl-results"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+/* ── i18n ────────────────────────────────────────────────── */
+const STRINGS = {
+  es: {
+    nav_ads: "NASA ADS",
+    nav_search: "Buscar Autor",
+    nav_topics: "Por Concepto",
+    nav_refs: "Referencias",
+    nav_cits: "Citaciones",
+    nav_sim: "Similares",
+    nav_chain: "Cadena",
+    nav_dl: "Descargar PDF",
+
+    search_title: "Buscar por Autor",
+    search_desc: "Encuentra artículos, tesis y libros de un autor en NASA ADS.",
+    topics_title: "Buscar por Concepto",
+    topics_desc: "Busca una frase exacta en título y/o abstract.",
+    refs_title: "Referencias de un Paper",
+    refs_desc: "Muestra todos los papers que un trabajo cita (hacia atrás).",
+    cits_title: "Citaciones de un Paper",
+    cits_desc: "Muestra todos los papers que citan este trabajo (hacia adelante).",
+    sim_title: "Papers Similares",
+    sim_desc: "Similitud semántica (por bibcode) o búsqueda por texto libre.",
+    chain_title: "Cadena de Referencias",
+    chain_desc: "Rastrea referencias nivel por nivel desde un paper semilla.",
+    dl_title: "Descargar PDF",
+    dl_desc: "Descarga el PDF de un paper via los links open-access de NASA ADS. Prioriza arXiv.",
+
+    label_author: "Autor",
+    label_year: "Año / Rango",
+    label_rows: "Resultados máx.",
+    label_first_author: "Posición del autor",
+    label_keywords: "Palabras clave / Frase",
+    label_field: "Campo de búsqueda",
+    label_id: "Bibcode o arXiv ID",
+    label_text: "Texto / Abstract",
+    label_levels: "Niveles",
+    label_max_per: "Máx. por nivel",
+
+    hint_author: 'Formato: "Apellido, Nombre"',
+    hint_levels: "⚠️ Nivel 3+ puede tardar mucho",
+
+    opt_any: "Cualquier posición",
+    opt_first: "Solo primer autor",
+    opt_all: "Título y abstract",
+    opt_title: "Solo título",
+    opt_abstract: "Solo abstract",
+
+    mode_bibcode: "Bibcode / arXiv",
+    mode_text: "Texto libre",
+
+    btn_run: "Ejecutar",
+    dl_btn: "Descargar PDF",
+
+    results_count: (n, total) => `<strong>${n}</strong> resultado(s) mostrados${total ? ` de ${total} totales` : ""}`,
+    btn_export: "⬇ Exportar CSV",
+    lbl_keywords: "Keywords extraídos:",
+    no_abstract: "Sin abstract disponible.",
+    expand: "Mostrar más",
+    collapse: "Mostrar menos",
+    open_ads: "Ver en ADS →",
+    loading: "Consultando NASA ADS...",
+    empty: "Ejecuta una búsqueda para ver resultados.",
+    no_results: "Sin resultados. Prueba con otros parámetros.",
+    dl_loading: "Obteniendo PDF...",
+    dl_success: "PDF listo para descargar",
+    dl_download: "⬇ Guardar PDF",
+    level_label: "Nivel",
+    btn_translate: "🌐 Traducir",
+    translating: "Traduciendo...",
+    translated_label: "ES",
+    show_original: "Ver original",
+  },
+  en: {
+    nav_ads: "NASA ADS",
+    nav_search: "Author Search",
+    nav_topics: "By Concept",
+    nav_refs: "References",
+    nav_cits: "Citations",
+    nav_sim: "Similar",
+    nav_chain: "Chain",
+    nav_dl: "Download PDF",
+
+    search_title: "Author Search",
+    search_desc: "Find articles, theses and books from an author on NASA ADS.",
+    topics_title: "Search by Concept",
+    topics_desc: "Search for an exact phrase in title and/or abstract.",
+    refs_title: "Paper References",
+    refs_desc: "Shows all papers that this work cites (backward).",
+    cits_title: "Paper Citations",
+    cits_desc: "Shows all papers that cite this work (forward).",
+    sim_title: "Similar Papers",
+    sim_desc: "Semantic similarity (by bibcode) or free-text search.",
+    chain_title: "Reference Chain",
+    chain_desc: "Traces references level by level from a seed paper.",
+    dl_title: "Download PDF",
+    dl_desc: "Downloads the PDF via NASA ADS open-access links. Prioritizes arXiv.",
+
+    label_author: "Author",
+    label_year: "Year / Range",
+    label_rows: "Max results",
+    label_first_author: "Author position",
+    label_keywords: "Keywords / Phrase",
+    label_field: "Search field",
+    label_id: "Bibcode or arXiv ID",
+    label_text: "Text / Abstract",
+    label_levels: "Levels",
+    label_max_per: "Max per level",
+
+    hint_author: 'Format: "Last, First"',
+    hint_levels: "⚠️ Level 3+ may take a while",
+
+    opt_any: "Any position",
+    opt_first: "First author only",
+    opt_all: "Title and abstract",
+    opt_title: "Title only",
+    opt_abstract: "Abstract only",
+
+    mode_bibcode: "Bibcode / arXiv",
+    mode_text: "Free text",
+
+    btn_run: "Run",
+    dl_btn: "Download PDF",
+
+    results_count: (n, total) => `<strong>${n}</strong> results shown${total ? ` out of ${total} total` : ""}`,
+    btn_export: "⬇ Export CSV",
+    lbl_keywords: "Extracted keywords:",
+    no_abstract: "No abstract available.",
+    expand: "Show more",
+    collapse: "Show less",
+    open_ads: "View on ADS →",
+    loading: "Querying NASA ADS...",
+    empty: "Run a search to see results.",
+    no_results: "No results. Try different parameters.",
+    dl_loading: "Fetching PDF...",
+    dl_success: "PDF ready to download",
+    dl_download: "⬇ Save PDF",
+    level_label: "Level",
+    btn_translate: "🌐 Translate",
+    translating: "Translating...",
+    translated_label: "ES",
+    show_original: "Show original",
+  }
+};
+
+let currentLang = "es";
+let currentTheme = "dark";
+let currentPapers = [];
+
+function t(key, ...args) {
+  const s = STRINGS[currentLang];
+  const v = s[key];
+  return typeof v === "function" ? v(...args) : (v || key);
+}
+
+function applyLang() {
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.getAttribute("data-i18n");
+    const val = t(key);
+    if (val) el.textContent = val;
+  });
+  document.documentElement.setAttribute("lang", currentLang === "es" ? "es" : "en");
+  document.getElementById("langToggle").textContent = currentLang === "es" ? "EN" : "ES";
+}
+
+function toggleLang() {
+  currentLang = currentLang === "es" ? "en" : "es";
+  applyLang();
+}
+
+function toggleTheme() {
+  currentTheme = currentTheme === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  document.getElementById("themeToggle").textContent = currentTheme === "dark" ? "☀️" : "🌙";
+}
+
+/* ── Navigation ─────────────────────────────────────────── */
+function showPanel(name) {
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("panel-" + name).classList.add("active");
+  document.querySelector(`[data-panel="${name}"]`).classList.add("active");
+  currentPapers = [];
+}
+
+/* ── Similar mode ───────────────────────────────────────── */
+let similarMode = "bibcode";
+function setSimilarMode(mode) {
+  similarMode = mode;
+  document.getElementById("sim-bibcode-group").style.display = mode === "bibcode" ? "" : "none";
+  document.getElementById("sim-text-group").style.display = mode === "text" ? "" : "none";
+  document.getElementById("sim-mode-bibcode").classList.toggle("active", mode === "bibcode");
+  document.getElementById("sim-mode-text").classList.toggle("active", mode === "text");
+}
+
+/* ── Render helpers ─────────────────────────────────────── */
+function renderState(container, type, extra) {
+  if (type === "loading") {
+    container.innerHTML = `<div class="state-loading"><div class="spinner"></div>${t("loading")}</div>`;
+  } else if (type === "empty") {
+    container.innerHTML = `<div class="state-empty"><div class="icon">🔭</div>${t("empty")}</div>`;
+  } else if (type === "error") {
+    container.innerHTML = `<div class="state-error">❌ ${extra}</div>`;
+  } else if (type === "no-results") {
+    container.innerHTML = `<div class="state-empty"><div class="icon">🔍</div>${t("no_results")}</div>`;
+  }
+}
+
+function renderPapers(container, papers, total, extraHtml) {
+  if (!papers || papers.length === 0) { renderState(container, "no-results"); return; }
+  currentPapers = papers;
+  let html = `<div class="results-header">
+    <span class="results-count">${t("results_count", papers.length, total)}</span>
+    <div style="display:flex;gap:8px">
+      ${extraHtml || ""}
+      <button class="btn-export" onclick="exportCSV()">${t("btn_export")}</button>
+    </div>
+  </div>`;
+  html += `<div class="papers-list">`;
+  for (let i = 0; i < papers.length; i++) {
+    const p = papers[i];
+    const lvl = p.level != null ? `<span class="badge badge-level">${t("level_label")} ${p.level}</span>` : "";
+    const abstract = p.abstract || t("no_abstract");
+    html += `<div class="paper-card">
+      <div class="paper-top">
+        <div class="paper-title"><a href="${p.url}" target="_blank">${escHtml(p.title)}</a></div>
+        <div class="paper-badges">
+          ${p.year ? `<span class="badge badge-year">${p.year}</span>` : ""}
+          ${p.doctype ? `<span class="badge badge-type">${p.doctype}</span>` : ""}
+          ${lvl}
+        </div>
+      </div>
+      ${p.authors ? `<div class="paper-authors">${escHtml(p.authors)}</div>` : ""}
+      <div class="paper-abstract" id="abs-${i}">${escHtml(abstract)}</div>
+      ${abstract.length > 200 ? `<button class="toggle-abstract" onclick="toggleAbs(${i})">${t("expand")}</button>` : ""}
+      <div class="paper-footer">
+        <button class="btn-translate" id="trbtn-${i}" onclick="translateAbstract(${i})" title="${t('btn_translate')}">${t("btn_translate")}</button>
+        <a class="link-ads" href="${p.url}" target="_blank">${t("open_ads")}</a>
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function toggleAbs(i) {
+  const el = document.getElementById("abs-" + i);
+  const btn = el.nextElementSibling;
+  el.classList.toggle("expanded");
+  btn.textContent = el.classList.contains("expanded") ? t("collapse") : t("expand");
+}
+
+const absOriginals = {};
+
+async function translateAbstract(i) {
+  const absEl = document.getElementById("abs-" + i);
+  const btn = document.getElementById("trbtn-" + i);
+
+  // Toggle back to original
+  if (absOriginals[i]) {
+    absEl.innerHTML = absOriginals[i];
+    delete absOriginals[i];
+    btn.textContent = t("btn_translate");
+    btn.disabled = false;
+    return;
+  }
+
+  const originalText = absEl.textContent.trim();
+  if (!originalText) return;
+
+  btn.textContent = t("translating");
+  btn.disabled = true;
+
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: originalText })
+    });
+    const data = await res.json();
+    if (data.error) { btn.textContent = "❌ Error"; btn.disabled = false; return; }
+    absOriginals[i] = absEl.innerHTML;
+    absEl.textContent = data.translated;
+    btn.textContent = t("show_original");
+    btn.disabled = false;
+  } catch(e) {
+    btn.textContent = t("btn_translate");
+    btn.disabled = false;
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* ── Export CSV ─────────────────────────────────────────── */
+async function exportCSV() {
+  if (!currentPapers.length) return;
+  const res = await fetch("/api/export_csv", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ papers: currentPapers })
+  });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "literatura.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── API calls ──────────────────────────────────────────── */
+async function apiPost(endpoint, body) {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+async function runSearch() {
+  const el = document.getElementById("search-results");
+  renderState(el, "loading");
+  try {
+    const data = await apiPost("/api/search", {
+      author: document.getElementById("search-author").value,
+      year: document.getElementById("search-year").value,
+      first_author: document.getElementById("search-first-author").value === "true",
+      rows: document.getElementById("search-rows").value,
+    });
+    if (data.error) { renderState(el, "error", data.error); return; }
+    renderPapers(el, data.papers, data.total);
+  } catch(e) { renderState(el, "error", e.message); }
+}
+
+async function runTopics() {
+  const el = document.getElementById("topics-results");
+  renderState(el, "loading");
+  try {
+    const data = await apiPost("/api/topics", {
+      keywords: document.getElementById("topics-keywords").value,
+      year: document.getElementById("topics-year").value,
+      field: document.getElementById("topics-field").value,
+      rows: document.getElementById("topics-rows").value,
+    });
+    if (data.error) { renderState(el, "error", data.error); return; }
+    renderPapers(el, data.papers, data.total);
+  } catch(e) { renderState(el, "error", e.message); }
+}
+
+async function runRefs() {
+  const el = document.getElementById("refs-results");
+  renderState(el, "loading");
+  try {
+    const data = await apiPost("/api/references", {
+      identifier: document.getElementById("refs-id").value,
+      year: document.getElementById("refs-year").value,
+      rows: document.getElementById("refs-rows").value,
+    });
+    if (data.error) { renderState(el, "error", data.error); return; }
+    renderPapers(el, data.papers, data.total);
+  } catch(e) { renderState(el, "error", e.message); }
+}
+
+async function runCits() {
+  const el = document.getElementById("cits-results");
+  renderState(el, "loading");
+  try {
+    const data = await apiPost("/api/citations", {
+      identifier: document.getElementById("cits-id").value,
+      year: document.getElementById("cits-year").value,
+      rows: document.getElementById("cits-rows").value,
+    });
+    if (data.error) { renderState(el, "error", data.error); return; }
+    renderPapers(el, data.papers, data.total);
+  } catch(e) { renderState(el, "error", e.message); }
+}
+
+async function runSimilar() {
+  const el = document.getElementById("sim-results");
+  renderState(el, "loading");
+  try {
+    const body = {
+      mode: similarMode,
+      year: document.getElementById("sim-year").value,
+      rows: document.getElementById("sim-rows").value,
+    };
+    if (similarMode === "bibcode") body.bibcode = document.getElementById("sim-bibcode").value;
+    else body.text = document.getElementById("sim-text").value;
+    const data = await apiPost("/api/similar", body);
+    if (data.error) { renderState(el, "error", data.error); return; }
+    let extra = "";
+    if (data.keywords && data.keywords.length) {
+      extra = `<div style="margin-top:8px"><span style="font-size:.75rem;color:var(--text2)">${t("lbl_keywords")}</span>
+        <div class="keywords-row">${data.keywords.map(k => `<span class="kw-chip">${escHtml(k)}</span>`).join("")}</div></div>`;
+    }
+    renderPapers(el, data.papers, data.total, "");
+    if (extra) el.insertAdjacentHTML("afterbegin", extra);
+  } catch(e) { renderState(el, "error", e.message); }
+}
+
+async function runChain() {
+  const el = document.getElementById("chain-results");
+  renderState(el, "loading");
+  try {
+    const data = await apiPost("/api/chain", {
+      identifier: document.getElementById("chain-id").value,
+      levels: document.getElementById("chain-levels").value,
+      max_per_level: document.getElementById("chain-max-per").value,
+      rows: document.getElementById("chain-rows").value,
+      year: document.getElementById("chain-year").value,
+    });
+    if (data.error) { renderState(el, "error", data.error); return; }
+    renderPapers(el, data.papers, data.total);
+  } catch(e) { renderState(el, "error", e.message); }
+}
+
+async function runDownload() {
+  const el = document.getElementById("dl-results");
+  el.innerHTML = `<div class="state-loading"><div class="spinner"></div>${t("dl_loading")}</div>`;
+  const identifier = document.getElementById("dl-id").value.trim();
+  if (!identifier) { renderState(el, "error", "Bibcode or arXiv ID required"); return; }
+  try {
+    const res = await fetch("/api/download", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ identifier })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      renderState(el, "error", data.error); return;
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : "paper.pdf";
+    const url = URL.createObjectURL(blob);
+    el.innerHTML = `<div class="download-result">
+      <div class="big-icon">📄</div>
+      <div class="dl-name">${escHtml(filename)}</div>
+      <a href="${url}" download="${escHtml(filename)}">
+        <button class="btn-dl">${t("dl_download")}</button>
+      </a>
+    </div>`;
+  } catch(e) { renderState(el, "error", e.message); }
+}
+
+/* ── Enter key support ──────────────────────────────────── */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" || e.target.tagName === "TEXTAREA") return;
+  const panel = document.querySelector(".panel.active");
+  if (!panel) return;
+  const btn = panel.querySelector(".btn-run");
+  if (btn) btn.click();
+});
+
+/* ── Init ───────────────────────────────────────────────── */
+applyLang();
+</script>
+</body>
+</html>

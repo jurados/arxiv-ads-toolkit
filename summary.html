@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arXiv Agent · Documentación</title>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border: #30363d; --text: #e6edf3; --text2: #8b949e;
+  --accent: #58a6ff; --green: #3fb950; --yellow: #d29922;
+  --code-bg: #161b22; --code-text: #e6edf3;
+}
+[data-theme="light"] {
+  --bg: #f6f8fa; --bg2: #ffffff; --bg3: #f0f2f5;
+  --border: #d0d7de; --text: #1f2328; --text2: #57606a;
+  --accent: #0969da; --green: #1a7f37; --yellow: #9a6700;
+  --code-bg: #f0f2f5; --code-text: #1f2328;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.7;
+  transition: background .2s, color .2s;
+}
+
+/* Layout */
+.layout { display: flex; min-height: 100vh; }
+
+/* Sidebar TOC */
+.toc {
+  width: 260px; flex-shrink: 0; background: var(--bg2);
+  border-right: 1px solid var(--border); padding: 20px 0;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.toc-title {
+  font-size: .7rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text2); padding: 0 20px 10px;
+}
+.toc a {
+  display: block; padding: 6px 20px; font-size: .84rem; color: var(--text2);
+  text-decoration: none; border-left: 3px solid transparent; transition: all .12s;
+}
+.toc a:hover { color: var(--accent); background: var(--bg3); }
+.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--bg3); }
+.toc a.sub { padding-left: 32px; font-size: .8rem; }
+
+/* Header bar */
+.topbar {
+  position: fixed; top: 0; left: 260px; right: 0; height: 48px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 0 24px; gap: 8px; z-index: 50;
+}
+.btn-small {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: .8rem;
+  font-weight: 600; transition: all .15s;
+}
+.btn-small:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Content */
+.content {
+  flex: 1; padding: 68px 48px 80px;
+  max-width: 900px;
+}
+
+/* Typography */
+h1 { font-size: 1.9rem; font-weight: 800; margin-bottom: 6px; line-height: 1.2; }
+h2 {
+  font-size: 1.4rem; font-weight: 700; margin: 48px 0 14px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+h2:first-child { margin-top: 0; }
+h3 { font-size: 1.05rem; font-weight: 700; margin: 28px 0 10px; color: var(--accent); }
+p { margin-bottom: 14px; color: var(--text); }
+.lead { font-size: 1.05rem; color: var(--text2); margin-bottom: 28px; }
+ul, ol { margin: 0 0 14px 24px; }
+li { margin-bottom: 4px; }
+hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+strong { font-weight: 700; }
+
+/* Code */
+code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  background: var(--code-bg); color: var(--accent); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 6px; font-size: .84em;
+}
+pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px 18px; overflow-x: auto; margin: 12px 0 20px; position: relative;
+}
+pre code {
+  background: none; border: none; padding: 0; color: var(--code-text);
+  font-size: .85rem; line-height: 1.6;
+}
+.copy-btn {
+  position: absolute; top: 8px; right: 8px; background: var(--bg3);
+  border: 1px solid var(--border); color: var(--text2); border-radius: 4px;
+  padding: 2px 8px; font-size: .72rem; cursor: pointer; font-family: inherit;
+}
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: .88rem; }
+th {
+  background: var(--bg3); font-weight: 700; text-align: left;
+  padding: 9px 14px; border: 1px solid var(--border); color: var(--text2);
+  font-size: .78rem; text-transform: uppercase; letter-spacing: .05em;
+}
+td { padding: 9px 14px; border: 1px solid var(--border); vertical-align: top; }
+tr:hover td { background: var(--bg3); }
+td code { font-size: .8em; }
+
+/* Callouts */
+.callout {
+  border-left: 4px solid var(--yellow); background: rgba(210,153,34,.08);
+  border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 16px 0; font-size: .88rem;
+}
+[data-theme="light"] .callout { background: #fffbeb; }
+
+/* Badge */
+.cmd-badge {
+  display: inline-block; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 10px; font-family: monospace; font-size: .85em;
+  color: var(--green); font-weight: 700; margin: 2px;
+}
+
+/* Anchor links */
+.section-anchor { scroll-margin-top: 64px; }
+
+@media (max-width: 900px) {
+  .toc { display: none; }
+  .topbar { left: 0; }
+  .content { padding: 64px 20px 60px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- SIDEBAR TOC -->
+<nav class="toc" id="toc">
+  <div class="toc-title">Contenido</div>
+  <a href="#estructura">Estructura del proyecto</a>
+  <a href="#alias">Alias disponibles</a>
+  <a href="#agente">Agente arXiv → WhatsApp</a>
+  <a href="#nasa-ads">Herramientas NASA ADS</a>
+  <a href="#ads-search" class="sub">ads-search</a>
+  <a href="#ads-topics" class="sub">ads-topics</a>
+  <a href="#ads-references" class="sub">ads-references</a>
+  <a href="#ads-citations" class="sub">ads-citations</a>
+  <a href="#ads-similar" class="sub">ads-similar</a>
+  <a href="#ads-chain" class="sub">ads-chain</a>
+  <a href="#ads-download" class="sub">ads-download</a>
+  <a href="#exportacion">Exportación CSV</a>
+  <a href="#credenciales">Credenciales</a>
+</nav>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <button class="btn-small" onclick="toggleTheme()" id="themeBtn">☀️ Claro</button>
+  <a href="http://localhost:5000" target="_blank">
+    <button class="btn-small">🚀 Abrir App</button>
+  </a>
+</div>
+
+<!-- CONTENT -->
+<main class="content">
+
+  <h1>🔭 arXiv Agent &amp; NASA ADS Toolkit</h1>
+  <p class="lead">Conjunto de herramientas para un astrónomo especializado en supernovas, transientes, ML/DL y multimodalidad. Cubre monitoreo automático de papers y construcción de matrices de literatura.</p>
+
+  <hr>
+
+  <!-- ESTRUCTURA -->
+  <h2 class="section-anchor" id="estructura">Estructura del proyecto</h2>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>arxiv-agent/
+├── main.py            # Agente diario arXiv → WhatsApp
+├── fetcher.py         # Consulta API de arXiv y filtra papers
+├── notifier.py        # Traduce abstracts y envía por WhatsApp
+├── config.py          # Keywords, categorías y configuración
+├── app.py             # Interfaz web (Flask)
+├── run.sh             # Wrapper para el cron job
+├── ads_search.py      # Buscar papers por autor en NASA ADS
+├── ads_topics.py      # Buscar papers por concepto/frase
+├── ads_references.py  # Extraer referencias de un paper
+├── ads_citations.py   # Ver quién cita un paper
+├── ads_similar.py     # Encontrar papers similares
+├── ads_chain.py       # Cadena de referencias multinivel
+├── ads_download.py    # Descargar PDFs de acceso abierto
+├── exporter.py        # Módulo compartido de exportación CSV
+├── requirements.txt   # Dependencias Python
+├── .env               # API keys (privado, nunca subir a git)
+└── .gitignore         # Excluye .env y venv/</code></pre>
+
+  <!-- ALIAS -->
+  <h2 class="section-anchor" id="alias">Alias disponibles</h2>
+  <p>Después de <code>source ~/.bashrc</code>:</p>
+  <table>
+    <thead><tr><th>Comando</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><span class="cmd-badge">ads-search</span></td><td>Buscar papers por autor</td></tr>
+      <tr><td><span class="cmd-badge">ads-topics</span></td><td>Buscar papers por concepto o frase</td></tr>
+      <tr><td><span class="cmd-badge">ads-references</span></td><td>Extraer referencias de un paper</td></tr>
+      <tr><td><span class="cmd-badge">ads-citations</span></td><td>Ver quién cita un paper</td></tr>
+      <tr><td><span class="cmd-badge">ads-similar</span></td><td>Encontrar papers similares</td></tr>
+      <tr><td><span class="cmd-badge">ads-chain</span></td><td>Cadena de referencias multinivel</td></tr>
+      <tr><td><span class="cmd-badge">ads-download</span></td><td>Descargar PDFs de acceso abierto</td></tr>
+    </tbody>
+  </table>
+
+  <!-- AGENTE -->
+  <h2 class="section-anchor" id="agente">1. Agente diario arXiv → WhatsApp</h2>
+  <p>Todos los días busca papers nuevos en arXiv y los envía por WhatsApp con el abstract traducido al español.</p>
+
+  <h3>Categorías monitoreadas</h3>
+  <table>
+    <thead><tr><th>Código</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><code>astro-ph.HE</code></td><td>High Energy Astrophysical Phenomena (supernovas, GRBs)</td></tr>
+      <tr><td><code>astro-ph.SR</code></td><td>Solar and Stellar Astrophysics</td></tr>
+      <tr><td><code>astro-ph.IM</code></td><td>Instrumentation and Methods for Astrophysics</td></tr>
+      <tr><td><code>cs.LG</code></td><td>Machine Learning</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Palabras clave</h3>
+  <p><strong>Supernovas:</strong> <code>supernova</code>, <code>supernovae</code>, <code>core-collapse</code>, <code>Type Ia</code>, <code>SN Ia</code>, <code>SLSN</code>, <code>superluminous supernova</code></p>
+  <p><strong>Transientes:</strong> <code>transient</code>, <code>fast transient</code>, <code>kilonova</code>, <code>GRB</code>, <code>gamma-ray burst</code>, <code>FBOT</code></p>
+  <p><strong>ML/DL:</strong> <code>machine learning supernova</code>, <code>deep learning supernova</code>, <code>neural network transient</code>, <code>classification transient</code></p>
+  <p><strong>Multimodalidad:</strong> <code>multimodal astronomy</code>, <code>multimodal astrophysics</code>, <code>foundation model astronomy</code></p>
+
+  <h3>Formato del mensaje WhatsApp</h3>
+  <pre><code>🔭 arXiv Daily — 2026-04-24
+📄 6 paper(s) nuevo(s) en supernovas, transientes y ML
+──────────────────────────────
+
+*[1/6] Título original en inglés*
+
+Abstract traducido al español...
+
+👥 Autor 1, Autor 2, Autor 3
+📅 2026-04-23 15:06 UTC
+🔗 http://arxiv.org/abs/2604.21759v1</code></pre>
+
+  <h3>Programación (cron job)</h3>
+  <p>Corre dos veces al día. Si el envío de las 10:00 fue exitoso, el de las 15:00 se omite. Si el PC estaba apagado, actúa como respaldo.</p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>0 14 * * *  /home/jurados/arxiv-agent/run.sh >> agent.log 2>&amp;1   # 10:00 AM Chile
+0 19 * * *  /home/jurados/arxiv-agent/run.sh >> agent.log 2>&amp;1   # 15:00 PM Chile</code></pre>
+
+  <h3>Ejecución manual</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>/home/jurados/arxiv-agent/venv/bin/python main.py --dry-run  # sin enviar
+/home/jurados/arxiv-agent/venv/bin/python main.py            # real
+cat /home/jurados/arxiv-agent/agent.log                      # ver logs</code></pre>
+
+  <hr>
+
+  <!-- NASA ADS -->
+  <h2 class="section-anchor" id="nasa-ads">2. Herramientas NASA ADS</h2>
+  <p>Todas requieren <code>ADS_TOKEN</code> en <code>.env</code>. Token gratuito en <a href="https://ui.adsabs.harvard.edu/user/settings/token" target="_blank">ui.adsabs.harvard.edu</a>.</p>
+  <p>Todas aceptan <code>--export archivo.csv</code> para acumular resultados en una matriz de literatura.</p>
+
+  <h3>Opciones comunes</h3>
+  <table>
+    <thead><tr><th>Opción</th><th>Aplica a</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><code>--year 2023</code></td><td>todos</td><td>Filtrar por año exacto</td></tr>
+      <tr><td><code>--year 2020-2023</code></td><td>todos</td><td>Filtrar por rango de años</td></tr>
+      <tr><td><code>--export matriz.csv</code></td><td>todos</td><td>Exportar resultados a CSV</td></tr>
+      <tr><td><code>--rows N</code></td><td>todos</td><td>Número máximo de resultados</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ads-search -->
+  <h2 class="section-anchor" id="ads-search"><code>ads-search</code> — Buscar por autor</h2>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-search "Apellido, Nombre"
+ads-search "Apellido, Nombre" --year 2023
+ads-search "Apellido, Nombre" --year 2020-2023
+ads-search "Apellido, Nombre" --first-author
+ads-search "Apellido, Nombre" --year 2022 --first-author --export matriz.csv</code></pre>
+  <p><strong>Opción exclusiva:</strong> <code>--first-author</code> (solo papers donde es primer autor)</p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-search "Forster, Francisco" --year 2022 --first-author
+# → 2 resultado(s) | solo primer autor
+# [01] DELIGHT: Deep Learning Identification of Galaxy Hosts...</code></pre>
+
+  <!-- ads-topics -->
+  <h2 class="section-anchor" id="ads-topics"><code>ads-topics</code> — Buscar por concepto</h2>
+  <p>Busca la frase de forma exacta en título y/o abstract. Frases muy largas pueden dar 0 resultados.</p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-topics "supernova classification"
+ads-topics "kilonova" --year 2024
+ads-topics "supernova classification" --year 2024-2026 --rows 10
+ads-topics "core collapse" --field abstract --rows 30
+ads-topics "multimodal astronomy" --field title --export matriz.csv</code></pre>
+  <p><strong>Opción exclusiva:</strong> <code>--field title|abstract|all</code> (dónde buscar, default: <code>all</code>)</p>
+
+  <!-- ads-references -->
+  <h2 class="section-anchor" id="ads-references"><code>ads-references</code> — Referencias de un paper</h2>
+  <p>Dado un bibcode o ID de arXiv, muestra todos los papers que ese trabajo cita.</p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-references "2022AJ....164..195F"
+ads-references "2301.07688"
+ads-references "2022AJ....164..195F" --year 2018-2022
+ads-references "2022AJ....164..195F" --export matriz.csv</code></pre>
+
+  <!-- ads-citations -->
+  <h2 class="section-anchor" id="ads-citations"><code>ads-citations</code> — Citaciones de un paper</h2>
+  <p>Inverso de <code>ads-references</code>: muestra los papers que citan al trabajo dado.</p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-citations "2022AJ....164..195F"
+ads-citations "2022AJ....164..195F" --year 2024-2026
+ads-citations "2022AJ....164..195F" --rows 50 --export matriz.csv</code></pre>
+  <table>
+    <thead><tr><th>Comando</th><th>Dirección</th></tr></thead>
+    <tbody>
+      <tr><td><code>ads-references</code></td><td>¿en qué se basó este paper? (hacia atrás)</td></tr>
+      <tr><td><code>ads-citations</code></td><td>¿quién construyó sobre él? (hacia adelante)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ads-similar -->
+  <h2 class="section-anchor" id="ads-similar"><code>ads-similar</code> — Papers similares</h2>
+  <p>Dos modos: similitud semántica real de ADS (bibcode) o búsqueda por keywords extraídos de un texto.</p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code># Modo bibcode
+ads-similar --bibcode "2022AJ....164..195F"
+ads-similar --bibcode "2022AJ....164..195F" --year 2020-2026 --rows 15
+
+# Modo texto
+ads-similar --text "We use a recurrent neural network to classify supernovae light curves"
+ads-similar --text "tu párrafo aquí" --year 2022-2026 --rows 20
+
+# Modo archivo
+ads-similar --file mi_abstract.txt --export matriz.csv</code></pre>
+
+  <!-- ads-chain -->
+  <h2 class="section-anchor" id="ads-chain"><code>ads-chain</code> — Cadena de referencias</h2>
+  <p>Rastrea las referencias de un paper nivel por nivel. Útil para mapear el árbol genealógico de una idea.</p>
+  <div class="callout">⚠️ Crece exponencialmente. Usar <code>--max-per-level</code> para controlarlo.</div>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-chain "2022AJ....164..195F"                          # 2 niveles (default)
+ads-chain "2022AJ....164..195F" --levels 3
+ads-chain "2022AJ....164..195F" --levels 4 --max-per-level 5
+ads-chain "2022AJ....164..195F" --levels 3 --year 2018-2026
+ads-chain "2022AJ....164..195F" --levels 3 --export cadena.csv</code></pre>
+
+  <h3>Guía de parámetros</h3>
+  <table>
+    <thead><tr><th>Objetivo</th><th>--levels</th><th>--max-per-level</th></tr></thead>
+    <tbody>
+      <tr><td>Vista rápida</td><td>2</td><td>5</td></tr>
+      <tr><td>Revisión estándar</td><td>2</td><td>20</td></tr>
+      <tr><td>Búsqueda profunda</td><td>3</td><td>10</td></tr>
+      <tr><td>Árbol completo</td><td>4+</td><td>5</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ads-download -->
+  <h2 class="section-anchor" id="ads-download"><code>ads-download</code> — Descargar PDFs</h2>
+  <p>Descarga PDFs usando los links de acceso abierto de NASA ADS. Prioriza arXiv (siempre gratuito).</p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-download "2022AJ....164..195F"
+ads-download "2208.04310"
+ads-download "2022AJ....164..195F" --dir ~/papers
+ads-download --from-csv mi_matriz.csv
+ads-download --from-csv mi_matriz.csv --dir ~/papers/matriz</code></pre>
+
+  <h3>Prioridad de fuentes</h3>
+  <table>
+    <thead><tr><th>Fuente</th><th>Tipo</th><th>Acceso</th></tr></thead>
+    <tbody>
+      <tr><td><code>EPRINT_PDF</code></td><td>arXiv PDF</td><td>Siempre gratuito</td></tr>
+      <tr><td><code>ADS_PDF</code></td><td>PDF en ADS</td><td>Gratuito</td></tr>
+      <tr><td><code>ADS_SCAN</code></td><td>Escaneo digitalizado</td><td>Gratuito</td></tr>
+      <tr><td><code>PUB_PDF</code></td><td>PDF del publisher</td><td>Puede requerir suscripción</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Nombre de archivo generado:</strong> <code>YYYY_PrimerApellido_PrimeraPalabraTitulo.pdf</code></p>
+
+  <hr>
+
+  <!-- EXPORTACIÓN -->
+  <h2 class="section-anchor" id="exportacion">Exportación CSV — Matriz de Literatura</h2>
+  <p>Todas las herramientas aceptan <code>--export archivo.csv</code>. Las búsquedas se acumulan sin duplicar bibcodes.</p>
+
+  <h3>Columnas del CSV</h3>
+  <table>
+    <thead><tr><th>Columna</th><th>Fuente</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><code>bibcode</code></td><td>NASA ADS</td><td>Identificador único</td></tr>
+      <tr><td><code>title</code></td><td>NASA ADS</td><td>Título del paper</td></tr>
+      <tr><td><code>year</code></td><td>NASA ADS</td><td>Año de publicación</td></tr>
+      <tr><td><code>doctype</code></td><td>NASA ADS</td><td>Tipo (article, thesis, book)</td></tr>
+      <tr><td><code>first_author</code></td><td>NASA ADS</td><td>Primer autor</td></tr>
+      <tr><td><code>url</code></td><td>NASA ADS</td><td>Enlace web en ADS</td></tr>
+      <tr><td><code>method</code></td><td>tú</td><td>Técnica o método usado</td></tr>
+      <tr><td><code>key_finding</code></td><td>tú</td><td>Hallazgo principal</td></tr>
+      <tr><td><code>relevance</code></td><td>tú</td><td>Relevancia para tu paper</td></tr>
+      <tr><td><code>notes</code></td><td>tú</td><td>Notas libres</td></tr>
+      <tr><td><code>level</code></td><td>ads-chain</td><td>Nivel de profundidad (solo en cadena)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Flujo típico para construir una matriz</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>source ~/.bashrc
+
+# 1. Papers de un autor clave
+ads-search "Apellido, Nombre" --year 2018-2026 --export mi_matriz.csv
+
+# 2. Papers sobre el tema central
+ads-topics "mi concepto principal" --rows 30 --export mi_matriz.csv
+
+# 3. Referencias de un paper seminal
+ads-references "bibcode_seminal" --export mi_matriz.csv
+
+# 4. Quién cita ese paper
+ads-citations "bibcode_seminal" --year 2022-2026 --export mi_matriz.csv
+
+# 5. Papers similares a tu abstract
+ads-similar --file mi_abstract.txt --export mi_matriz.csv
+
+# 6. Árbol de referencias en profundidad
+ads-chain "bibcode_seminal" --levels 3 --export mi_matriz.csv
+
+# Abrir en Excel / Google Sheets y completar las columnas vacías</code></pre>
+
+  <hr>
+
+  <!-- CREDENCIALES -->
+  <h2 class="section-anchor" id="credenciales">Credenciales requeridas</h2>
+  <p>Archivo <code>.env</code> en la raíz del proyecto:</p>
+  <pre><code>ADS_TOKEN=tu_token_nasa_ads</code></pre>
+  <p><strong>NASA ADS token</strong> (gratuito): <a href="https://ui.adsabs.harvard.edu/user/settings/token" target="_blank">ui.adsabs.harvard.edu/user/settings/token</a></p>
+
+</main>
+</div>
+
+<script>
+let theme = "dark";
+
+function toggleTheme() {
+  theme = theme === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("themeBtn").textContent = theme === "dark" ? "☀️ Claro" : "🌙 Oscuro";
+}
+
+function copyPre(btn) {
+  const code = btn.nextElementSibling.textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = "✓ copiado";
+    setTimeout(() => btn.textContent = "copiar", 1500);
+  });
+}
+
+// Active TOC link on scroll
+const sections = document.querySelectorAll(".section-anchor");
+const tocLinks = document.querySelectorAll(".toc a");
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      tocLinks.forEach(a => a.classList.remove("active"));
+      const link = document.querySelector(`.toc a[href="#${entry.target.id}"]`);
+      if (link) link.classList.add("active");
+    }
+  });
+}, { rootMargin: "-20% 0px -70% 0px" });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

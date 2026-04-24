@@ -13,6 +13,11 @@ arxiv-agent/
 ├── notifier.py        # Traduce abstracts y envía por WhatsApp
 ├── config.py          # Keywords, categorías y configuración
 ├── run.sh             # Wrapper para el cron job
+├── app.py             # Interfaz web Flask (todas las herramientas ADS)
+├── run_web.sh         # Script para arrancar la interfaz web
+├── templates/
+│   └── index.html     # Frontend de la app web (dark/light, ES/EN)
+├── summary.html       # Documentación HTML generada desde este archivo
 ├── ads_search.py      # Buscar papers por autor en NASA ADS
 ├── ads_topics.py      # Buscar papers por concepto/frase
 ├── ads_references.py  # Extraer referencias de un paper
@@ -26,6 +31,47 @@ arxiv-agent/
 ├── .gitignore         # Excluye .env y venv/
 └── venv/              # Entorno virtual Python aislado
 ```
+
+---
+
+---
+
+## 0. Interfaz web (app.py)
+
+Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye modo oscuro/claro, interfaz en español e inglés, y traducción de abstracts al español con un clic.
+
+### Iniciar la app
+
+```bash
+/home/jurados/arxiv-agent/run_web.sh
+# → http://localhost:5000
+```
+
+### Funcionalidades
+
+| Característica | Detalle |
+|---|---|
+| Herramientas disponibles | ads-search, ads-topics, ads-references, ads-citations, ads-similar, ads-chain, ads-download |
+| Modo oscuro / claro | Toggle en la barra superior |
+| Idioma ES / EN | Toggle instantáneo sin recargar |
+| Traducir abstract | Botón 🌐 en cada resultado (Google Translate, sin API key) |
+| Exportar CSV | Botón en cualquier resultado; descarga `literatura.csv` |
+| Descargar PDF | El PDF se descarga directamente desde el navegador |
+
+### Rutas de la API
+
+| Ruta | Método | Descripción |
+|---|---|---|
+| `/` | GET | Interfaz web principal |
+| `/api/search` | POST | ads-search |
+| `/api/topics` | POST | ads-topics |
+| `/api/references` | POST | ads-references |
+| `/api/citations` | POST | ads-citations |
+| `/api/similar` | POST | ads-similar (modo bibcode o texto) |
+| `/api/chain` | POST | ads-chain |
+| `/api/download` | POST | ads-download (devuelve el PDF) |
+| `/api/translate` | POST | Traduce un texto al español |
+| `/api/export_csv` | POST | Genera y descarga CSV de los resultados actuales |
 
 ---
 
