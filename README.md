@@ -1,168 +1,84 @@
 # arXiv Agent & NASA ADS Toolkit
 
-A set of tools for astronomers to monitor new papers and build literature matrices. Built for research in supernovae, transients, ML/DL applied to astrophysics, and multimodality.
+Conjunto de herramientas avanzadas para la automatización de la literatura científica y construcción de matrices bibliográficas. Diseñado para investigadores especializados en **supernovas, transientes, Machine Learning/Deep Learning aplicado y multimodalidad**.
 
-## Features
-
-| Tool | Description |
-|---|---|
-| **Web interface** | Browser UI for all NASA ADS tools — dark/light mode, ES/EN toggle, abstract translation |
-| **arXiv Daily Agent** | Monitors arXiv daily and sends new papers via WhatsApp (translated to Spanish) |
-| `ads-search` | Search NASA ADS papers by author |
-| `ads-topics` | Search NASA ADS papers by keyword or phrase |
-| `ads-references` | Extract all references from a paper |
-| `ads-citations` | Find all papers that cite a given work |
-| `ads-similar` | Find papers similar to a bibcode or text paragraph |
-| `ads-chain` | Trace reference chains across multiple levels |
-| `ads-download` | Download open-access PDFs (arXiv, ADS, publisher) |
-
-All NASA ADS tools are available both from the command line and from the web interface. They support `--export matrix.csv` to build a literature matrix incrementally.
+Esta herramienta centraliza la potencia de la API de **NASA ADS** en una interfaz web moderna y una potente suite de comandos (CLI), permitiendo el monitoreo diario de **arXiv** y la gestión inteligente de bibliografía.
 
 ---
 
-## Web Interface
+## 🚀 Funcionalidades Principales
 
-All tools are available as a local web app:
+### 🌐 Interfaz Web (app.py)
+Una aplicación Flask completa para gestionar toda tu investigación desde el navegador:
+- **Modo Oscuro/Claro** y soporte bilingüe (**Español/Inglés**).
+- **Traducción instantánea** de abstracts (vía Google Translate).
+- **Visualización interactiva de grafos**: Mapeo visual de cadenas de referencias con `vis.js`.
+- **Gestión de Descargas**: Descarga directa de PDFs de acceso abierto.
+- **Exportación flexible**: Generación de matrices en **CSV** y archivos **BibTeX** listos para LaTeX.
+- **Configuración en caliente**: Edita palabras clave y categorías directamente desde la interfaz.
 
-```bash
-/home/jurados/arxiv-agent/run_web.sh
-# Open: http://localhost:5000
-```
+### 🤖 Agente Diario (arXiv → WhatsApp)
+- Monitoreo automático de nuevas publicaciones en categorías seleccionadas.
+- Filtrado por palabras clave inteligentes (Supernovas, Transientes, ML, Multimodalidad).
+- Envío de notificaciones diarias vía **WhatsApp** con abstracts traducidos.
 
-Features: dark/light mode toggle · ES/EN language toggle · one-click abstract translation (Google Translate) · CSV export · PDF download directly from the browser.
+### 🛠 Herramientas NASA ADS (CLI)
+- `ads-search`: Búsquedas precisas por autor (incluyendo filtro de primer autor).
+- `ads-topics`: Búsqueda semántica por conceptos o frases exactas.
+- `ads-references` / `ads-citations`: Extracción de redes de citas hacia atrás y hacia adelante.
+- `ads-similar`: Encuentra trabajos relacionados mediante similitud semántica de ADS o análisis de texto.
+- `ads-chain`: Rastreo de referencias en múltiples niveles para mapear el "árbol genealógico" de una idea.
+- `ads-download`: Automatización de descargas de PDFs (priorizando arXiv sobre paywalls).
 
 ---
 
-## Requirements
+## 💻 Instalación y Configuración
 
+### Requisitos
 - Python 3.10+
-- NASA ADS token (free): https://ui.adsabs.harvard.edu/user/settings/token
-- WhatsApp MCP server (for the daily agent): https://github.com/lharries/whatsapp-mcp
+- **NASA ADS Token**: Consíguelo gratis en [ADS Settings](https://ui.adsabs.harvard.edu/user/settings/token).
 
+### Setup
 ```bash
 git clone https://github.com/jurados/arxiv-ads-toolkit
 cd arxiv-ads-toolkit
 python3 -m venv venv
-venv/bin/pip install -r requirements.txt
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Create a `.env` file:
-```
-ADS_TOKEN=your_nasa_ads_token
-```
-
-Add aliases to `~/.bashrc`:
-```bash
-alias ads-search="/path/to/arxiv-ads-toolkit/ads_search.py"
-alias ads-topics="/path/to/arxiv-ads-toolkit/ads_topics.py"
-alias ads-references="/path/to/arxiv-ads-toolkit/ads_references.py"
-alias ads-citations="/path/to/arxiv-ads-toolkit/ads_citations.py"
-alias ads-similar="/path/to/arxiv-ads-toolkit/ads_similar.py"
-alias ads-chain="/path/to/arxiv-ads-toolkit/ads_chain.py"
-alias ads-download="/path/to/arxiv-ads-toolkit/ads_download.py"
+### Configuración
+Crea un archivo `.env` en la raíz:
+```env
+ADS_TOKEN=tu_token_aqui
 ```
 
 ---
 
-## Usage
+## 📖 Uso Rápido
 
-### Daily arXiv Agent
-
-Runs automatically via cron at 10:00 AM and 15:00 PM (Chile time). Sends new papers matching your keywords via WhatsApp with abstracts translated to Spanish.
-
+### Lanzar Interfaz Web
 ```bash
-# Manual run
-venv/bin/python main.py
-
-# Test without sending
-venv/bin/python main.py --dry-run
+./run_web.sh
+# Acceso en: http://localhost:5000
 ```
 
-Edit `config.py` to customize keywords, categories, and WhatsApp number.
+### Construir una Matriz de Literatura (CLI)
+Todas las herramientas aceptan el flag `--export` para acumular resultados en un CSV sin duplicados:
+```bash
+# Ejemplo: Unir búsquedas de autor y tema en una sola matriz
+ads-search "Forster, Francisco" --year 2022-2026 --export mi_matriz.csv
+ads-topics "supernova classification" --rows 20 --export mi_matriz.csv
+```
 
 ---
 
-### NASA ADS Tools
-
-All tools accept `--year 2023` or `--year 2020-2023` and `--export matrix.csv`.
-
-**Search by author:**
-```bash
-ads-search "Forster, Francisco"
-ads-search "Forster, Francisco" --year 2020-2023 --first-author
-ads-search "Forster, Francisco" --export matrix.csv
-```
-
-**Search by topic:**
-```bash
-ads-topics "supernova classification"
-ads-topics "kilonova" --year 2024 --rows 30
-ads-topics "deep learning transient" --field title --export matrix.csv
-```
-
-**Extract references from a paper:**
-```bash
-ads-references "2022AJ....164..195F"          # bibcode
-ads-references "2301.07688"                   # arXiv ID
-ads-references "2022AJ....164..195F" --export matrix.csv
-```
-
-**Find papers that cite a work:**
-```bash
-ads-citations "2022AJ....164..195F"
-ads-citations "2022AJ....164..195F" --year 2023-2026 --export matrix.csv
-```
-
-**Find similar papers:**
-```bash
-# By bibcode (semantic similarity from ADS)
-ads-similar --bibcode "2022AJ....164..195F"
-
-# By text paragraph
-ads-similar --text "We propose a deep learning model to classify supernovae light curves"
-
-# By file
-ads-similar --file my_abstract.txt --export matrix.csv
-```
-
-**Trace reference chains:**
-```bash
-ads-chain "2022AJ....164..195F"                            # 2 levels (default)
-ads-chain "2022AJ....164..195F" --levels 3 --max-per-level 10
-ads-chain "2022AJ....164..195F" --levels 3 --export chain.csv
-```
-
-**Download open-access PDFs:**
-```bash
-ads-download "2022AJ....164..195F"                         # single paper
-ads-download "2208.04310"                                  # by arXiv ID
-ads-download "2022AJ....164..195F" --dir ~/papers          # custom dir
-ads-download --from-csv matrix.csv                         # batch from CSV
-ads-download --from-csv matrix.csv --dir ~/papers/matrix   # batch + custom dir
-```
-
-Prioritizes arXiv PDF (always free) > ADS hosted PDF > ADS scan > publisher PDF. Filenames follow the pattern `YYYY_LastName_FirstWord.pdf`.
+## 📊 Matriz de Literatura
+El sistema genera un archivo `literatura.csv` con columnas pre-formateadas:
+- **Datos de ADS**: bibcode, título, año, primer autor, URL.
+- **Campos de Análisis**: método, hallazgo principal, relevancia, notas (para completar en Excel/Google Sheets).
 
 ---
 
-## Literature Matrix
-
-All tools export to the same CSV file, accumulating results without duplicates.
-
-```bash
-# Build a matrix combining multiple searches
-ads-search "Forster, Francisco" --year 2018-2026      --export matrix.csv
-ads-topics "supernova classification" --rows 20        --export matrix.csv
-ads-references "2022AJ....164..195F"                   --export matrix.csv
-ads-citations  "2022AJ....164..195F" --year 2022-2026  --export matrix.csv
-ads-similar --file my_abstract.txt                     --export matrix.csv
-ads-chain   "2022AJ....164..195F" --levels 3           --export matrix.csv
-```
-
-The CSV includes columns pre-filled by ADS (`bibcode`, `title`, `year`, `doctype`, `first_author`, `url`) and empty columns for you to fill (`method`, `key_finding`, `relevance`, `notes`). The `ads-chain` tool adds a `level` column indicating search depth.
-
----
-
-## License
-
+## 📜 Licencia
 MIT
