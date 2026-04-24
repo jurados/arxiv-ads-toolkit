@@ -144,6 +144,8 @@ td code { font-size: .8em; }
   <div class="toc-title">Contenido</div>
   <a href="#estructura">Estructura del proyecto</a>
   <a href="#alias">Alias disponibles</a>
+  <a href="#interfaz-web">Interfaz web</a>
+  <a href="#web-rutas" class="sub">Rutas API</a>
   <a href="#agente">Agente arXiv → WhatsApp</a>
   <a href="#nasa-ads">Herramientas NASA ADS</a>
   <a href="#ads-search" class="sub">ads-search</a>
@@ -179,9 +181,14 @@ td code { font-size: .8em; }
 ├── main.py            # Agente diario arXiv → WhatsApp
 ├── fetcher.py         # Consulta API de arXiv y filtra papers
 ├── notifier.py        # Traduce abstracts y envía por WhatsApp
+├── summarizer.py      # Resumen de papers con Claude (Anthropic)
 ├── config.py          # Keywords, categorías y configuración
-├── app.py             # Interfaz web (Flask)
 ├── run.sh             # Wrapper para el cron job
+├── app.py             # Interfaz web Flask (todas las herramientas ADS)
+├── run_web.sh         # Script para arrancar la interfaz web
+├── templates/
+│   └── index.html     # Frontend de la app web (dark/light, ES/EN)
+├── summary.html       # Documentación HTML (este archivo)
 ├── ads_search.py      # Buscar papers por autor en NASA ADS
 ├── ads_topics.py      # Buscar papers por concepto/frase
 ├── ads_references.py  # Extraer referencias de un paper
@@ -190,6 +197,7 @@ td code { font-size: .8em; }
 ├── ads_chain.py       # Cadena de referencias multinivel
 ├── ads_download.py    # Descargar PDFs de acceso abierto
 ├── exporter.py        # Módulo compartido de exportación CSV
+├── pyproject.toml     # Metadatos del proyecto y entry points
 ├── requirements.txt   # Dependencias Python
 ├── .env               # API keys (privado, nunca subir a git)
 └── .gitignore         # Excluye .env y venv/</code></pre>
@@ -209,6 +217,46 @@ td code { font-size: .8em; }
       <tr><td><span class="cmd-badge">ads-download</span></td><td>Descargar PDFs de acceso abierto</td></tr>
     </tbody>
   </table>
+
+  <!-- INTERFAZ WEB -->
+  <h2 class="section-anchor" id="interfaz-web">0. Interfaz web (app.py)</h2>
+  <p>Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye modo oscuro/claro, interfaz en español e inglés, y traducción de abstracts al español con un clic.</p>
+
+  <h3>Iniciar la app</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>/home/jurados/arxiv-agent/run_web.sh
+# → http://localhost:5000</code></pre>
+
+  <h3>Funcionalidades</h3>
+  <table>
+    <thead><tr><th>Característica</th><th>Detalle</th></tr></thead>
+    <tbody>
+      <tr><td>Herramientas disponibles</td><td>ads-search, ads-topics, ads-references, ads-citations, ads-similar, ads-chain, ads-download</td></tr>
+      <tr><td>Modo oscuro / claro</td><td>Toggle en la barra superior, persiste entre recargas</td></tr>
+      <tr><td>Idioma ES / EN</td><td>Toggle instantáneo sin recargar la página</td></tr>
+      <tr><td>Traducir abstract</td><td>Botón 🌐 en cada resultado (Google Translate, sin API key)</td></tr>
+      <tr><td>Exportar CSV</td><td>Botón en cualquier resultado; descarga <code>literatura.csv</code></td></tr>
+      <tr><td>Descargar PDF</td><td>El PDF se descarga directamente desde el navegador</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="web-rutas">Rutas de la API</h3>
+  <table>
+    <thead><tr><th>Ruta</th><th>Método</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><code>/</code></td><td>GET</td><td>Interfaz web principal</td></tr>
+      <tr><td><code>/api/search</code></td><td>POST</td><td>ads-search</td></tr>
+      <tr><td><code>/api/topics</code></td><td>POST</td><td>ads-topics</td></tr>
+      <tr><td><code>/api/references</code></td><td>POST</td><td>ads-references</td></tr>
+      <tr><td><code>/api/citations</code></td><td>POST</td><td>ads-citations</td></tr>
+      <tr><td><code>/api/similar</code></td><td>POST</td><td>ads-similar (modo bibcode o texto)</td></tr>
+      <tr><td><code>/api/chain</code></td><td>POST</td><td>ads-chain</td></tr>
+      <tr><td><code>/api/download</code></td><td>POST</td><td>ads-download (devuelve el PDF)</td></tr>
+      <tr><td><code>/api/translate</code></td><td>POST</td><td>Traduce un texto al español (Google Translate)</td></tr>
+      <tr><td><code>/api/export_csv</code></td><td>POST</td><td>Genera y descarga CSV de los resultados actuales</td></tr>
+    </tbody>
+  </table>
+
+  <hr>
 
   <!-- AGENTE -->
   <h2 class="section-anchor" id="agente">1. Agente diario arXiv → WhatsApp</h2>
@@ -424,8 +472,23 @@ ads-chain "bibcode_seminal" --levels 3 --export mi_matriz.csv
   <!-- CREDENCIALES -->
   <h2 class="section-anchor" id="credenciales">Credenciales requeridas</h2>
   <p>Archivo <code>.env</code> en la raíz del proyecto:</p>
-  <pre><code>ADS_TOKEN=tu_token_nasa_ads</code></pre>
-  <p><strong>NASA ADS token</strong> (gratuito): <a href="https://ui.adsabs.harvard.edu/user/settings/token" target="_blank">ui.adsabs.harvard.edu/user/settings/token</a></p>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ADS_TOKEN=tu_token_nasa_ads
+ANTHROPIC_API_KEY=tu_api_key_anthropic</code></pre>
+  <table>
+    <thead><tr><th>Variable</th><th>Usada en</th><th>Obtener</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>ADS_TOKEN</code></td>
+        <td>Todos los scripts <code>ads_*.py</code> y la app web</td>
+        <td><a href="https://ui.adsabs.harvard.edu/user/settings/token" target="_blank">ui.adsabs.harvard.edu → Settings → Token</a> (gratuito)</td>
+      </tr>
+      <tr>
+        <td><code>ANTHROPIC_API_KEY</code></td>
+        <td><code>summarizer.py</code> (resumen con Claude)</td>
+        <td><a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a></td>
+      </tr>
+    </tbody>
+  </table>
 
 </main>
 </div>
