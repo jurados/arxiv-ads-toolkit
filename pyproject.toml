@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=72"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "arxiv-agent"
+version = "0.3.0"
+description = "arXiv daily monitor and NASA ADS literature toolkit for astronomers"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.97.0",
+    "deep-translator>=1.11.0",
+    "flask>=3.1.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+ads-search     = "ads_search:main"
+ads-topics     = "ads_topics:main"
+ads-references = "ads_references:main"
+ads-citations  = "ads_citations:main"
+ads-similar    = "ads_similar:main"
+ads-chain      = "ads_chain:main"
+ads-download   = "ads_download:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ads_*", "app", "fetcher", "notifier", "summarizer", "exporter", "config"]
