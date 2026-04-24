@@ -250,6 +250,77 @@ header {
 [data-theme="light"] .btn-dl { color: #fff; }
 .btn-dl:hover { opacity: .9; }
 
+/* ── Matrix viewer ──────────────────────────────────────── */
+.matrix-toolbar {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.matrix-toolbar input[type="text"] {
+  flex: 1; min-width: 200px; background: var(--input-bg);
+  border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 7px 10px; font-size: .88rem;
+  outline: none; font-family: inherit;
+}
+.matrix-toolbar input[type="text"]:focus { border-color: var(--accent); }
+.matrix-stats { font-size: .8rem; color: var(--text2); white-space: nowrap; }
+.matrix-stats strong { color: var(--text); }
+
+.save-bar {
+  display: none; align-items: center; gap: 10px;
+  background: rgba(63,185,80,.08); border: 1px solid rgba(63,185,80,.3);
+  border-radius: 8px; padding: 8px 14px; margin-bottom: 14px; font-size: .85rem;
+}
+[data-theme="light"] .save-bar { background: #f0fff4; }
+.save-bar.visible { display: flex; }
+.save-bar .save-msg { flex: 1; color: var(--green); }
+.btn-save {
+  padding: 5px 14px; background: var(--green); border: none;
+  border-radius: 5px; color: #fff; font-weight: 700; cursor: pointer;
+  font-size: .82rem; font-family: inherit;
+}
+.btn-save:hover { opacity: .85; }
+.btn-discard {
+  padding: 5px 12px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--text2); cursor: pointer;
+  font-size: .82rem; font-family: inherit;
+}
+
+.matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+table.matrix {
+  width: 100%; border-collapse: collapse; font-size: .82rem; min-width: 900px;
+}
+table.matrix th {
+  background: var(--bg3); padding: 8px 12px; text-align: left;
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text2); border-bottom: 1px solid var(--border);
+  white-space: nowrap; user-select: none; cursor: pointer;
+}
+table.matrix th:hover { color: var(--accent); }
+table.matrix th .sort-arrow { margin-left: 4px; opacity: .4; }
+table.matrix th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+table.matrix td {
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+  vertical-align: top; max-width: 280px;
+}
+table.matrix tr:last-child td { border-bottom: none; }
+table.matrix tr:hover td { background: var(--bg3); }
+table.matrix td.editable {
+  cursor: text; min-width: 120px;
+}
+table.matrix td.editable:focus {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+  background: var(--input-bg); border-radius: 2px;
+}
+table.matrix td.cell-url a { font-size: .78rem; }
+table.matrix td.cell-title { font-weight: 600; color: var(--text); min-width: 200px; }
+table.matrix td.cell-abstract {
+  max-width: 220px; color: var(--text2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cell-year { text-align: center; }
+.cell-level { text-align: center; }
+.no-rows { text-align: center; padding: 40px; color: var(--text2); }
+
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { width: 56px; }
@@ -303,6 +374,10 @@ header {
     </div>
     <div class="nav-item" data-panel="download" onclick="showPanel('download')">
       <span class="icon">⬇️</span><span data-i18n="nav_dl">Descargar PDF</span>
+    </div>
+    <div class="sidebar-label" style="margin-top:8px" data-i18n="nav_section_tools">Herramientas</div>
+    <div class="nav-item" data-panel="matrix" onclick="showPanel('matrix')">
+      <span class="icon">📊</span><span data-i18n="nav_matrix">Matriz CSV</span>
     </div>
   </nav>
 
@@ -502,10 +577,49 @@ header {
       <div id="dl-results"></div>
     </div>
 
+    <!-- MATRIX -->
+    <div class="panel" id="panel-matrix">
+      <div class="panel-title" data-i18n="matrix_title">Matriz de Literatura</div>
+      <div class="panel-desc" data-i18n="matrix_desc">Carga un CSV de tu matriz para visualizar, filtrar y editar las columnas de anotación.</div>
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="form-group full">
+          <label data-i18n="label_matrix_file">Ruta del archivo CSV</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="matrix-path" placeholder="~/mi_matriz.csv" style="flex:1" />
+            <button class="btn-run" style="margin-top:0" onclick="loadMatrix()">
+              <span>📂</span><span data-i18n="btn_load">Cargar</span>
+            </button>
+          </div>
+          <span class="hint" data-i18n="hint_matrix_editable">Las columnas <strong>method · key_finding · relevance · notes</strong> son editables — clic para editar, Tab para avanzar.</span>
+        </div>
+      </div>
+
+      <div class="save-bar" id="matrix-save-bar">
+        <span class="save-msg" data-i18n="save_pending">Hay cambios sin guardar</span>
+        <button class="btn-discard" onclick="discardMatrix()" data-i18n="btn_discard">Descartar</button>
+        <button class="btn-save" onclick="saveMatrix()" data-i18n="btn_save">Guardar CSV</button>
+      </div>
+
+      <div id="matrix-results"></div>
+    </div>
+
   </main>
 </div>
 
 <script>
+/* ── Persistence (localStorage) ────────────────────────── */
+const LS_THEME = "arxiv_theme";
+const LS_LANG  = "arxiv_lang";
+
+function loadPrefs() {
+  const theme = localStorage.getItem(LS_THEME) || "dark";
+  const lang  = localStorage.getItem(LS_LANG)  || "es";
+  currentTheme = theme;
+  currentLang  = lang;
+  document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("themeToggle").textContent = theme === "dark" ? "☀️" : "🌙";
+}
+
 /* ── i18n ────────────────────────────────────────────────── */
 const STRINGS = {
   es: {
@@ -517,6 +631,8 @@ const STRINGS = {
     nav_sim: "Similares",
     nav_chain: "Cadena",
     nav_dl: "Descargar PDF",
+    nav_section_tools: "Herramientas",
+    nav_matrix: "Matriz CSV",
 
     search_title: "Buscar por Autor",
     search_desc: "Encuentra artículos, tesis y libros de un autor en NASA ADS.",
@@ -532,6 +648,23 @@ const STRINGS = {
     chain_desc: "Rastrea referencias nivel por nivel desde un paper semilla.",
     dl_title: "Descargar PDF",
     dl_desc: "Descarga el PDF de un paper via los links open-access de NASA ADS. Prioriza arXiv.",
+    matrix_title: "Matriz de Literatura",
+    matrix_desc: "Carga un CSV de tu matriz para visualizar, filtrar y editar las columnas de anotación.",
+    label_matrix_file: "Ruta del archivo CSV",
+    hint_matrix_editable: "Las columnas method · key_finding · relevance · notes son editables — clic para editar, Tab para avanzar.",
+    btn_load: "Cargar",
+    save_pending: "Hay cambios sin guardar",
+    btn_save: "Guardar CSV",
+    btn_discard: "Descartar",
+    matrix_filter: "Filtrar...",
+    matrix_saved: "✓ Guardado",
+    matrix_no_rows: "No se encontraron filas con ese filtro.",
+    matrix_empty: "Carga un archivo CSV para empezar.",
+    matrix_stats: (n, total) => `${n} de ${total} filas`,
+    col_bibcode: "Bibcode", col_title: "Título", col_year: "Año",
+    col_doctype: "Tipo", col_first_author: "Primer autor", col_url: "URL",
+    col_abstract: "Abstract", col_level: "Nivel",
+    col_method: "Método", col_key_finding: "Hallazgo", col_relevance: "Relevancia", col_notes: "Notas",
 
     label_author: "Autor",
     label_year: "Año / Rango",
@@ -587,6 +720,8 @@ const STRINGS = {
     nav_sim: "Similar",
     nav_chain: "Chain",
     nav_dl: "Download PDF",
+    nav_section_tools: "Tools",
+    nav_matrix: "CSV Matrix",
 
     search_title: "Author Search",
     search_desc: "Find articles, theses and books from an author on NASA ADS.",
@@ -602,6 +737,23 @@ const STRINGS = {
     chain_desc: "Traces references level by level from a seed paper.",
     dl_title: "Download PDF",
     dl_desc: "Downloads the PDF via NASA ADS open-access links. Prioritizes arXiv.",
+    matrix_title: "Literature Matrix",
+    matrix_desc: "Load a CSV matrix to view, filter and edit annotation columns.",
+    label_matrix_file: "CSV file path",
+    hint_matrix_editable: "Columns method · key_finding · relevance · notes are editable — click to edit, Tab to advance.",
+    btn_load: "Load",
+    save_pending: "Unsaved changes",
+    btn_save: "Save CSV",
+    btn_discard: "Discard",
+    matrix_filter: "Filter...",
+    matrix_saved: "✓ Saved",
+    matrix_no_rows: "No rows match the filter.",
+    matrix_empty: "Load a CSV file to get started.",
+    matrix_stats: (n, total) => `${n} of ${total} rows`,
+    col_bibcode: "Bibcode", col_title: "Title", col_year: "Year",
+    col_doctype: "Type", col_first_author: "First author", col_url: "URL",
+    col_abstract: "Abstract", col_level: "Level",
+    col_method: "Method", col_key_finding: "Key finding", col_relevance: "Relevance", col_notes: "Notes",
 
     label_author: "Author",
     label_year: "Year / Range",
@@ -672,6 +824,7 @@ function applyLang() {
 
 function toggleLang() {
   currentLang = currentLang === "es" ? "en" : "es";
+  localStorage.setItem(LS_LANG, currentLang);
   applyLang();
 }
 
@@ -679,6 +832,7 @@ function toggleTheme() {
   currentTheme = currentTheme === "dark" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", currentTheme);
   document.getElementById("themeToggle").textContent = currentTheme === "dark" ? "☀️" : "🌙";
+  localStorage.setItem(LS_THEME, currentTheme);
 }
 
 /* ── Navigation ─────────────────────────────────────────── */
@@ -952,9 +1106,179 @@ async function runDownload() {
   } catch(e) { renderState(el, "error", e.message); }
 }
 
+/* ── Matrix viewer ──────────────────────────────────────── */
+const EDITABLE_COLS = ["method", "key_finding", "relevance", "notes"];
+const COL_LABELS = {
+  bibcode: () => t("col_bibcode"), title: () => t("col_title"),
+  year: () => t("col_year"), doctype: () => t("col_doctype"),
+  first_author: () => t("col_first_author"), url: () => t("col_url"),
+  abstract: () => t("col_abstract"), level: () => t("col_level"),
+  method: () => t("col_method"), key_finding: () => t("col_key_finding"),
+  relevance: () => t("col_relevance"), notes: () => t("col_notes"),
+};
+const HIDDEN_COLS = ["abstract"];  // too wide; shown on hover via title attr
+
+let matrixRows = [];        // full dataset
+let matrixColumns = [];
+let matrixDirty = false;
+let matrixFile = "";
+let matrixFilter = "";
+let matrixSort = { col: null, asc: true };
+
+function getFilteredRows() {
+  if (!matrixFilter) return matrixRows;
+  const q = matrixFilter.toLowerCase();
+  return matrixRows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
+}
+
+function getSortedRows(rows) {
+  if (!matrixSort.col) return rows;
+  return [...rows].sort((a, b) => {
+    const va = String(a[matrixSort.col] || "").toLowerCase();
+    const vb = String(b[matrixSort.col] || "").toLowerCase();
+    return matrixSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+}
+
+async function loadMatrix() {
+  const path = document.getElementById("matrix-path").value.trim();
+  if (!path) return;
+  matrixFile = path;
+  const el = document.getElementById("matrix-results");
+  el.innerHTML = `<div class="state-loading"><div class="spinner"></div></div>`;
+  try {
+    const res = await fetch(`/api/matrix?file=${encodeURIComponent(path)}`);
+    const data = await res.json();
+    if (data.error) { el.innerHTML = `<div class="state-error">❌ ${escHtml(data.error)}</div>`; return; }
+    matrixRows    = data.rows;
+    matrixColumns = data.columns;
+    matrixDirty   = false;
+    matrixFilter  = "";
+    matrixSort    = { col: null, asc: true };
+    document.getElementById("matrix-save-bar").classList.remove("visible");
+    renderMatrix();
+  } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
+}
+
+function renderMatrix() {
+  const el = document.getElementById("matrix-results");
+  if (!matrixRows.length) {
+    el.innerHTML = `<div class="state-empty"><div class="icon">📊</div>${t("matrix_empty")}</div>`;
+    return;
+  }
+
+  const filtered = getSortedRows(getFilteredRows());
+  const visibleCols = matrixColumns.filter(c => !HIDDEN_COLS.includes(c));
+
+  let html = `<div class="matrix-toolbar">
+    <input type="text" placeholder="${t('matrix_filter')}" value="${escHtml(matrixFilter)}"
+      oninput="matrixFilter=this.value;renderMatrix()" />
+    <span class="matrix-stats">${t("matrix_stats", filtered.length, matrixRows.length)}</span>
+    <button class="btn-export" onclick="downloadMatrixCSV()">⬇ CSV</button>
+  </div>
+  <div class="matrix-wrap">
+  <table class="matrix">
+    <thead><tr>`;
+
+  for (const col of visibleCols) {
+    const label = COL_LABELS[col] ? COL_LABELS[col]() : col;
+    const sorted = matrixSort.col === col;
+    const arrow = sorted ? (matrixSort.asc ? "↑" : "↓") : "↕";
+    html += `<th class="${sorted ? 'sorted' : ''}" onclick="sortMatrix('${col}')">
+      ${escHtml(label)} <span class="sort-arrow">${arrow}</span>
+    </th>`;
+  }
+  html += `</tr></thead><tbody>`;
+
+  if (!filtered.length) {
+    html += `<tr><td colspan="${visibleCols.length}" class="no-rows">${t("matrix_no_rows")}</td></tr>`;
+  } else {
+    for (const row of filtered) {
+      const rowIdx = matrixRows.indexOf(row);
+      html += `<tr>`;
+      for (const col of visibleCols) {
+        const val = row[col] || "";
+        const isEdit = EDITABLE_COLS.includes(col);
+        const absTitle = col === "url" && row["abstract"] ? ` title="${escHtml(row['abstract'].slice(0,300))}"` : "";
+        if (col === "url") {
+          html += `<td class="cell-url"${absTitle}><a href="${escHtml(val)}" target="_blank">ADS →</a></td>`;
+        } else if (col === "title") {
+          html += `<td class="cell-title" title="${escHtml(val)}">${escHtml(val.slice(0,80))}${val.length>80?'…':''}</td>`;
+        } else if (isEdit) {
+          html += `<td class="editable" contenteditable="true" data-row="${rowIdx}" data-col="${col}"
+            onblur="cellEdited(this)" onkeydown="cellKeydown(event,this)">${escHtml(val)}</td>`;
+        } else {
+          html += `<td class="cell-${col}">${escHtml(val)}</td>`;
+        }
+      }
+      html += `</tr>`;
+    }
+  }
+  html += `</tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+function sortMatrix(col) {
+  if (matrixSort.col === col) matrixSort.asc = !matrixSort.asc;
+  else { matrixSort.col = col; matrixSort.asc = true; }
+  renderMatrix();
+}
+
+function cellEdited(td) {
+  const rowIdx = parseInt(td.dataset.row);
+  const col    = td.dataset.col;
+  const newVal = td.textContent.trim();
+  if (matrixRows[rowIdx][col] === newVal) return;
+  matrixRows[rowIdx][col] = newVal;
+  matrixDirty = true;
+  document.getElementById("matrix-save-bar").classList.add("visible");
+}
+
+function cellKeydown(e, td) {
+  if (e.key === "Enter") { e.preventDefault(); td.blur(); }
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const cells = Array.from(document.querySelectorAll("td.editable"));
+    const idx = cells.indexOf(td);
+    const next = cells[e.shiftKey ? idx - 1 : idx + 1];
+    if (next) { next.focus(); const range = document.createRange(); range.selectNodeContents(next); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+  }
+}
+
+async function saveMatrix() {
+  if (!matrixDirty || !matrixFile) return;
+  try {
+    const res = await fetch("/api/matrix/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: matrixFile, rows: matrixRows })
+    });
+    const data = await res.json();
+    if (data.error) { alert("Error: " + data.error); return; }
+    matrixDirty = false;
+    document.getElementById("matrix-save-bar").classList.remove("visible");
+  } catch(e) { alert("Error: " + e.message); }
+}
+
+function discardMatrix() {
+  loadMatrix();
+}
+
+function downloadMatrixCSV() {
+  if (!matrixRows.length) return;
+  const cols = matrixColumns;
+  const lines = [cols.join(",")];
+  for (const row of matrixRows) {
+    lines.push(cols.map(c => `"${String(row[c]||"").replace(/"/g,'""')}"`).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "matriz.csv" });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
 /* ── Enter key support ──────────────────────────────────── */
 document.addEventListener("keydown", e => {
-  if (e.key !== "Enter" || e.target.tagName === "TEXTAREA") return;
+  if (e.key !== "Enter" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) return;
   const panel = document.querySelector(".panel.active");
   if (!panel) return;
   const btn = panel.querySelector(".btn-run");
@@ -962,6 +1286,7 @@ document.addEventListener("keydown", e => {
 });
 
 /* ── Init ───────────────────────────────────────────────── */
+loadPrefs();
 applyLang();
 </script>
 </body>

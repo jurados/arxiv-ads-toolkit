@@ -235,6 +235,46 @@ def api_export_csv():
     )
 
 
+@app.route("/api/matrix", methods=["GET"])
+def api_matrix_load():
+    filepath = request.args.get("file", "").strip()
+    if not filepath:
+        return jsonify({"error": "No file path provided"}), 400
+    filepath = os.path.expanduser(filepath)
+    if not os.path.exists(filepath):
+        return jsonify({"error": f"File not found: {filepath}"}), 404
+    try:
+        rows = []
+        with open(filepath, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames or []
+            for row in reader:
+                rows.append(dict(row))
+        return jsonify({"rows": rows, "columns": fieldnames, "total": len(rows)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/matrix/save", methods=["POST"])
+def api_matrix_save():
+    data = request.get_json()
+    filepath = os.path.expanduser(data.get("file", "").strip())
+    rows = data.get("rows", [])
+    if not filepath:
+        return jsonify({"error": "No file path provided"}), 400
+    if not rows:
+        return jsonify({"error": "No rows provided"}), 400
+    try:
+        fieldnames = list(rows[0].keys())
+        with open(filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+        return jsonify({"ok": True, "saved": len(rows)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
     data = request.get_json()
