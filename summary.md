@@ -11,12 +11,14 @@ arxiv-agent/
 ├── main.py            # Agente diario arXiv → WhatsApp
 ├── fetcher.py         # Consulta API de arXiv y filtra papers
 ├── notifier.py        # Traduce abstracts y envía por WhatsApp
+├── digester.py        # Genera digest diario en HTML (digests/)
 ├── config.py          # Keywords, categorías y configuración
 ├── run.sh             # Wrapper para el cron job
 ├── app.py             # Interfaz web Flask (todas las herramientas ADS)
 ├── run_web.sh         # Script para arrancar la interfaz web
 ├── templates/
 │   └── index.html     # Frontend de la app web (dark/light, ES/EN)
+├── digests/           # Digest HTML diario (digest_YYYY-MM-DD.html)
 ├── summary.html       # Documentación HTML generada desde este archivo
 ├── ads_search.py      # Buscar papers por autor en NASA ADS
 ├── ads_topics.py      # Buscar papers por concepto/frase
@@ -55,8 +57,18 @@ Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye m
 | Modo oscuro / claro | Toggle en la barra superior |
 | Idioma ES / EN | Toggle instantáneo sin recargar |
 | Traducir abstract | Botón 🌐 en cada resultado (Google Translate, sin API key) |
-| Exportar CSV | Botón en cualquier resultado; descarga `literatura.csv` |
+| Selección de papers | Checkboxes por paper + "Seleccionar todos" |
+| Exportar CSV | Solo papers seleccionados; descarga `literatura.csv` |
+| Exportar BibTeX | Solo papers seleccionados; descarga `references.bib` vía NASA ADS |
 | Descargar PDF | El PDF se descarga directamente desde el navegador |
+| Paginación | 20 papers por página con navegación anterior/siguiente |
+| Ordenar por año | Botones ↑ / ↓ en cualquier resultado; preserva selección al cambiar página |
+| Badge de citas | Número de citas de NASA ADS mostrado en cada tarjeta |
+| Paper-to-Code | Detección automática de repositorios (GitHub/GitLab/PyPI) en abstracts y comentarios |
+| Grafo de cadena | Visualización interactiva de la cadena de referencias con vis.js |
+| Digests guardados | Lista de digests HTML diarios accesibles desde el panel del agente |
+| Panel de configuración | Editar categorías, keywords, hours_back y max_results sin tocar el código |
+| arXiv → ADS | El dry-run resuelve cada paper arXiv en NASA ADS: bibcode, citas, PDF directo |
 
 ### Rutas de la API
 
@@ -68,10 +80,17 @@ Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye m
 | `/api/references` | POST | ads-references |
 | `/api/citations` | POST | ads-citations |
 | `/api/similar` | POST | ads-similar (modo bibcode o texto) |
-| `/api/chain` | POST | ads-chain |
+| `/api/chain` | POST | ads-chain (devuelve papers + edges para el grafo) |
 | `/api/download` | POST | ads-download (devuelve el PDF) |
 | `/api/translate` | POST | Traduce un texto al español |
-| `/api/export_csv` | POST | Genera y descarga CSV de los resultados actuales |
+| `/api/export_csv` | POST | CSV de papers seleccionados |
+| `/api/export_bibtex` | POST | BibTeX de papers seleccionados vía NASA ADS |
+| `/api/arxiv/resolve` | POST | Resuelve IDs arXiv a bibcodes de ADS (batch) |
+| `/api/arxiv/bibtex_arxiv` | GET | BibTeX de un paper directamente desde arXiv |
+| `/api/config` | GET | Lee `config.py` y devuelve sus valores |
+| `/api/config/save` | POST | Escribe `config.py` y recarga el módulo en caliente |
+| `/api/arxiv/digests` | GET | Lista los digests HTML guardados en `digests/` |
+| `/api/arxiv/digest` | GET | Sirve el contenido de un digest específico |
 
 ---
 

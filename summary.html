@@ -181,13 +181,14 @@ td code { font-size: .8em; }
 ├── main.py            # Agente diario arXiv → WhatsApp
 ├── fetcher.py         # Consulta API de arXiv y filtra papers
 ├── notifier.py        # Traduce abstracts y envía por WhatsApp
-├── summarizer.py      # Resumen de papers con Claude (Anthropic)
+├── digester.py        # Genera digest diario en HTML (digests/)
 ├── config.py          # Keywords, categorías y configuración
 ├── run.sh             # Wrapper para el cron job
 ├── app.py             # Interfaz web Flask (todas las herramientas ADS)
 ├── run_web.sh         # Script para arrancar la interfaz web
 ├── templates/
 │   └── index.html     # Frontend de la app web (dark/light, ES/EN)
+├── digests/           # Digest HTML diario (digest_YYYY-MM-DD.html)
 ├── summary.html       # Documentación HTML (este archivo)
 ├── ads_search.py      # Buscar papers por autor en NASA ADS
 ├── ads_topics.py      # Buscar papers por concepto/frase
@@ -234,8 +235,18 @@ td code { font-size: .8em; }
       <tr><td>Modo oscuro / claro</td><td>Toggle en la barra superior, persiste entre recargas</td></tr>
       <tr><td>Idioma ES / EN</td><td>Toggle instantáneo sin recargar la página</td></tr>
       <tr><td>Traducir abstract</td><td>Botón 🌐 en cada resultado (Google Translate, sin API key)</td></tr>
-      <tr><td>Exportar CSV</td><td>Botón en cualquier resultado; descarga <code>literatura.csv</code></td></tr>
+      <tr><td>Selección de papers</td><td>Checkboxes por paper + "Seleccionar todos"; selección se preserva al cambiar página</td></tr>
+      <tr><td>Exportar CSV</td><td>Solo papers seleccionados; descarga <code>literatura.csv</code></td></tr>
+      <tr><td>Exportar BibTeX</td><td>Solo papers seleccionados; descarga <code>references.bib</code> vía NASA ADS</td></tr>
       <tr><td>Descargar PDF</td><td>El PDF se descarga directamente desde el navegador</td></tr>
+      <tr><td>Paginación</td><td>20 papers por página con navegación anterior/siguiente</td></tr>
+      <tr><td>Ordenar por año</td><td>Botones ↑ / ↓ en cualquier resultado; preserva selección al cambiar página</td></tr>
+      <tr><td>Badge de citas</td><td>Número de citas de NASA ADS mostrado en cada tarjeta</td></tr>
+      <tr><td>Paper-to-Code</td><td>Detección automática de repositorios (GitHub/GitLab/PyPI) en abstracts y comentarios</td></tr>
+      <tr><td>Grafo de cadena</td><td>Visualización interactiva de la cadena de referencias con vis.js</td></tr>
+      <tr><td>Digests guardados</td><td>Lista de digests HTML diarios accesibles desde el panel del agente</td></tr>
+      <tr><td>Panel de configuración</td><td>Editar categorías, keywords, hours_back y max_results sin tocar el código</td></tr>
+      <tr><td>arXiv → ADS</td><td>Dry-run resuelve cada paper arXiv en NASA ADS: bibcode, citas, PDF directo</td></tr>
     </tbody>
   </table>
 
@@ -249,10 +260,17 @@ td code { font-size: .8em; }
       <tr><td><code>/api/references</code></td><td>POST</td><td>ads-references</td></tr>
       <tr><td><code>/api/citations</code></td><td>POST</td><td>ads-citations</td></tr>
       <tr><td><code>/api/similar</code></td><td>POST</td><td>ads-similar (modo bibcode o texto)</td></tr>
-      <tr><td><code>/api/chain</code></td><td>POST</td><td>ads-chain</td></tr>
+      <tr><td><code>/api/chain</code></td><td>POST</td><td>ads-chain (devuelve papers + edges para el grafo)</td></tr>
       <tr><td><code>/api/download</code></td><td>POST</td><td>ads-download (devuelve el PDF)</td></tr>
       <tr><td><code>/api/translate</code></td><td>POST</td><td>Traduce un texto al español (Google Translate)</td></tr>
-      <tr><td><code>/api/export_csv</code></td><td>POST</td><td>Genera y descarga CSV de los resultados actuales</td></tr>
+      <tr><td><code>/api/export_csv</code></td><td>POST</td><td>CSV de papers seleccionados</td></tr>
+      <tr><td><code>/api/export_bibtex</code></td><td>POST</td><td>BibTeX de papers seleccionados vía NASA ADS</td></tr>
+      <tr><td><code>/api/arxiv/resolve</code></td><td>POST</td><td>Resuelve IDs arXiv a bibcodes de ADS (batch)</td></tr>
+      <tr><td><code>/api/arxiv/bibtex_arxiv</code></td><td>GET</td><td>BibTeX de un paper directamente desde arXiv</td></tr>
+      <tr><td><code>/api/config</code></td><td>GET</td><td>Lee <code>config.py</code> y devuelve sus valores</td></tr>
+      <tr><td><code>/api/config/save</code></td><td>POST</td><td>Escribe <code>config.py</code> y recarga el módulo en caliente</td></tr>
+      <tr><td><code>/api/arxiv/digests</code></td><td>GET</td><td>Lista los digests HTML guardados en <code>digests/</code></td></tr>
+      <tr><td><code>/api/arxiv/digest</code></td><td>GET</td><td>Sirve el contenido de un digest específico</td></tr>
     </tbody>
   </table>
 

@@ -14,6 +14,7 @@ Una aplicación Flask completa para gestionar toda tu investigación desde el na
 - **Traducción instantánea** de abstracts (vía Google Translate).
 - **Visualización interactiva de grafos**: Mapeo visual de cadenas de referencias con `vis.js`.
 - **Gestión de Descargas**: Descarga directa de PDFs de acceso abierto.
+- **Paper-to-Code**: Detección automática de repositorios de código (GitHub, GitLab, PapersWithCode, PyPI) analizando abstracts, comentarios y agradecimientos.
 - **Exportación flexible**: Generación de matrices en **CSV** y archivos **BibTeX** listos para LaTeX.
 - **Configuración en caliente**: Edita palabras clave y categorías directamente desde la interfaz.
 
