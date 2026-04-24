@@ -338,5 +338,16 @@ def api_translate():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/shutdown", methods=["POST"])
+def api_shutdown():
+    import threading
+    def stop():
+        import time, os, signal
+        time.sleep(0.5)
+        os.kill(os.getpid(), signal.SIGTERM)
+    threading.Thread(target=stop, daemon=True).start()
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)
