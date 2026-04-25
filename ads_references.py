@@ -21,23 +21,12 @@ import os
 import sys
 from dotenv import load_dotenv
 from exporter import papers_to_csv
+from utils import is_arxiv_id, pubdate_filter
 
 load_dotenv()
 
 ADS_TOKEN = os.getenv("ADS_TOKEN")
 ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
-
-
-def is_arxiv_id(identifier: str) -> bool:
-    """
-    Detecta si el identificador es un ID de arXiv.
-    arXiv IDs tienen el formato YYMM.NNNNN o YYMM.NNNNNN
-    Los bibcodes empiezan con un año de 4 dígitos y contienen puntos.
-    """
-    clean = identifier.replace("arXiv:", "").replace("arxiv:", "")
-    # Si tiene puntos y la parte antes del punto son solo dígitos → arXiv
-    parts = clean.split(".")
-    return len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()
 
 
 def arxiv_to_bibcode(arxiv_id: str) -> str | None:
@@ -78,17 +67,12 @@ def fetch_references(bibcode: str, year: str = None, rows: int = 200) -> tuple[l
     """
     query = f"references(bibcode:{bibcode})"
 
-    # Filtro de año opcional
     if year:
-        if "-" in year and len(year) > 4:
-            start, end = year.split("-", 1)
-            query += f" pubdate:[{start}-01 TO {end}-12]"
-        else:
-            query += f" pubdate:[{year}-01 TO {year}-12]"
+        query += f" {pubdate_filter(year)}"
 
     params = urllib.parse.urlencode({
         "q":    query,
-        "fl":   "title,bibcode,year,author,doctype,abstract",
+        "fl":   "title,bibcode,year,author,doctype,abstract,citation_count,doi,identifier",
         "rows": rows,
         "sort": "date desc",
     })

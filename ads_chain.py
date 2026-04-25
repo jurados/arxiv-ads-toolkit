@@ -30,17 +30,13 @@ import os
 import sys
 from dotenv import load_dotenv
 from exporter import papers_to_csv
+from utils import is_arxiv_id, pubdate_filter
 
 load_dotenv()
 
 ADS_TOKEN = os.getenv("ADS_TOKEN")
 ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
 
-
-def is_arxiv_id(identifier: str) -> bool:
-    clean = identifier.replace("arXiv:", "").replace("arxiv:", "")
-    parts = clean.split(".")
-    return len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()
 
 
 def arxiv_to_bibcode(arxiv_id: str) -> str | None:
@@ -73,15 +69,11 @@ def fetch_references_for(bibcode: str, rows: int = 50, year: str = None) -> list
     """
     query = f"references(bibcode:{bibcode})"
     if year:
-        if "-" in year and len(year) > 4:
-            start, end = year.split("-", 1)
-            query += f" pubdate:[{start}-01 TO {end}-12]"
-        else:
-            query += f" pubdate:[{year}-01 TO {year}-12]"
+        query += f" {pubdate_filter(year)}"
 
     params = urllib.parse.urlencode({
         "q":    query,
-        "fl":   "bibcode,title,year,author,doctype",
+        "fl":   "bibcode,title,year,author,doctype,citation_count,abstract,doi,identifier",
         "rows": rows,
         "sort": "date desc",
     })
@@ -99,7 +91,7 @@ def fetch_references_for(bibcode: str, rows: int = 50, year: str = None) -> list
 
 
 def build_chain(seed_bibcode: str, levels: int, max_per_level: int,
-                rows_per_paper: int, year: str) -> list:
+                rows_per_paper: int = 30, year: str = None) -> list:
     """
     Recorre la cadena de referencias nivel por nivel.
 
@@ -135,6 +127,7 @@ def build_chain(seed_bibcode: str, levels: int, max_per_level: int,
                 bc = paper.get("bibcode", "")
                 if bc:
                     paper["level"] = level
+                    paper["parent"] = bibcode
                     seen_bibcodes.add(bc)
                     level_papers.append(paper)
                     next_level_bibcodes.append(bc)

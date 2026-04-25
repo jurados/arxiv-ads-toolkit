@@ -13,28 +13,27 @@ arxiv-agent/
 ├── notifier.py        # Traduce abstracts y envía por WhatsApp
 ├── digester.py        # Genera digest diario en HTML (digests/)
 ├── config.py          # Keywords, categorías y configuración
-├── run.sh             # Wrapper para el cron job
+├── run.sh             # Wrapper para el cron job (con bridge check)
 ├── app.py             # Interfaz web Flask (todas las herramientas ADS)
-├── run_web.sh         # Script para arrancar la interfaz web
+├── run_web.sh         # Script para arrancar la interfaz web (con bridge check)
 ├── templates/
 │   └── index.html     # Frontend de la app web (dark/light, ES/EN)
 ├── digests/           # Digest HTML diario (digest_YYYY-MM-DD.html)
 ├── summary.html       # Documentación HTML generada desde este archivo
+├── utils.py           # Utilidades compartidas: is_arxiv_id, pubdate_filter
 ├── ads_search.py      # Buscar papers por autor en NASA ADS
 ├── ads_topics.py      # Buscar papers por concepto/frase
 ├── ads_references.py  # Extraer referencias de un paper
 ├── ads_citations.py   # Ver quién cita un paper
 ├── ads_similar.py     # Encontrar papers similares
 ├── ads_chain.py       # Cadena de referencias multinivel
-├── ads_download.py    # Descargar PDFs de acceso abierto
+├── ads_download.py    # Descargar PDFs + get_papers_metadata_batch
 ├── exporter.py        # Módulo compartido de exportación CSV
 ├── requirements.txt   # Dependencias Python
 ├── .env               # API keys (privado, nunca subir a git)
 ├── .gitignore         # Excluye .env y venv/
 └── venv/              # Entorno virtual Python aislado
 ```
-
----
 
 ---
 
@@ -64,11 +63,18 @@ Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye m
 | Paginación | 20 papers por página con navegación anterior/siguiente |
 | Ordenar por año | Botones ↑ / ↓ en cualquier resultado; preserva selección al cambiar página |
 | Badge de citas | Número de citas de NASA ADS mostrado en cada tarjeta |
+| Badge arXiv | ID de arXiv detectado desde bibcode o campo `identifier`; enlaza a arxiv.org |
+| Badge DOI | DOI del paper (campo `doi` de ADS); enlaza a doi.org |
 | Paper-to-Code | Detección automática de repositorios (GitHub/GitLab/PyPI) en abstracts y comentarios |
 | Grafo de cadena | Visualización interactiva de la cadena de referencias con vis.js |
 | Digests guardados | Lista de digests HTML diarios accesibles desde el panel del agente |
 | Panel de configuración | Editar categorías, keywords, hours_back y max_results sin tocar el código |
+| Restaurar valores por defecto | Botón en el panel de configuración que restablece las keywords originales |
+| Panel Comparar (⚖️) | Compara dos papers: referencias comunes, citaciones cruzadas, totales |
+| Editor número WhatsApp | Cambiar el número destinatario del agente directamente desde la UI |
 | arXiv → ADS | El dry-run resuelve cada paper arXiv en NASA ADS: bibcode, citas, PDF directo |
+| Scroll-to-top | Botón flotante que aparece al bajar; vuelve al inicio del panel `.main` |
+| Footer de paper | Orden: Traducir → PDF → Code → Bibcode → DOI → Refs → Citas → arXiv |
 
 ### Rutas de la API
 
@@ -82,13 +88,17 @@ Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye m
 | `/api/similar` | POST | ads-similar (modo bibcode o texto) |
 | `/api/chain` | POST | ads-chain (devuelve papers + edges para el grafo) |
 | `/api/download` | POST | ads-download (devuelve el PDF) |
+| `/api/download_batch` | POST | Descarga batch con metadata en una sola llamada a ADS |
+| `/api/compare` | POST | Compara dos papers: refs/citas comunes (paralelo con ThreadPoolExecutor) |
 | `/api/translate` | POST | Traduce un texto al español |
 | `/api/export_csv` | POST | CSV de papers seleccionados |
 | `/api/export_bibtex` | POST | BibTeX de papers seleccionados vía NASA ADS |
 | `/api/arxiv/resolve` | POST | Resuelve IDs arXiv a bibcodes de ADS (batch) |
 | `/api/arxiv/bibtex_arxiv` | GET | BibTeX de un paper directamente desde arXiv |
+| `/api/arxiv/dryrun` | GET | Dry-run del agente; retorna `hours_back` y lista de papers |
 | `/api/config` | GET | Lee `config.py` y devuelve sus valores |
 | `/api/config/save` | POST | Escribe `config.py` y recarga el módulo en caliente |
+| `/api/config/whatsapp` | POST | Actualiza `WHATSAPP_NUMBER` en `config.py` |
 | `/api/arxiv/digests` | GET | Lista los digests HTML guardados en `digests/` |
 | `/api/arxiv/digest` | GET | Sirve el contenido de un digest específico |
 
@@ -108,71 +118,7 @@ Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye m
 
 ---
 
-## 1. Agente diario de arXiv → WhatsApp
-
-Todos los días busca papers nuevos en arXiv y los envía por WhatsApp con el abstract traducido al español.
-
-### Categorías monitoreadas
-
-| Código | Descripción |
-|---|---|
-| `astro-ph.HE` | High Energy Astrophysical Phenomena (supernovas, GRBs) |
-| `astro-ph.SR` | Solar and Stellar Astrophysics |
-| `astro-ph.IM` | Instrumentation and Methods for Astrophysics |
-| `cs.LG` | Machine Learning |
-
-### Palabras clave
-
-**Supernovas:** `supernova`, `supernovae`, `core-collapse`, `Type Ia`, `SN Ia`, `SLSN`, `superluminous supernova`
-
-**Transientes:** `transient`, `fast transient`, `kilonova`, `GRB`, `gamma-ray burst`, `FBOT`
-
-**ML/DL:** `machine learning supernova`, `deep learning supernova`, `neural network transient`, `classification transient`
-
-**Multimodalidad:** `multimodal astronomy`, `multimodal astrophysics`, `foundation model astronomy`
-
-### Formato del mensaje de WhatsApp
-
-```
-🔭 arXiv Daily — 2026-04-24
-📄 6 paper(s) nuevo(s) en supernovas, transientes y ML
-──────────────────────────────
-
-*[1/6] Título original en inglés*
-
-Abstract traducido al español...
-
-👥 Autor 1, Autor 2, Autor 3
-📅 2026-04-23 15:06 UTC
-🔗 http://arxiv.org/abs/2604.21759v1
-```
-
-### Programación (cron job)
-
-Corre dos veces al día. Si el envío de las 10:00 fue exitoso, el de las 15:00 se omite. Si el PC estaba apagado a las 10:00, el de las 15:00 actúa como respaldo.
-
-```
-0 14 * * *  /home/jurados/arxiv-agent/run.sh >> agent.log 2>&1   # 10:00 AM Chile
-0 19 * * *  /home/jurados/arxiv-agent/run.sh >> agent.log 2>&1   # 15:00 PM Chile
-```
-
-El archivo `.last_run` registra la fecha del último envío para evitar duplicados.
-
-### Ejecución manual
-
-```bash
-/home/jurados/arxiv-agent/venv/bin/python main.py --dry-run  # sin enviar
-/home/jurados/arxiv-agent/venv/bin/python main.py            # real
-cat /home/jurados/arxiv-agent/agent.log                      # ver logs
-```
-
-### Personalización
-
-Edita `config.py` para cambiar `WHATSAPP_NUMBER`, `KEYWORDS`, `CATEGORIES` u `HOURS_BACK`.
-
----
-
-## 2. Herramientas NASA ADS
+## 1. Herramientas NASA ADS
 
 Todas requieren `ADS_TOKEN` en `.env`. Token gratuito en `https://ui.adsabs.harvard.edu/user/settings/token`.
 
@@ -183,9 +129,13 @@ Todas aceptan `--export archivo.csv` para acumular resultados en una matriz de l
 | Opción | Aplica a | Descripción |
 |---|---|---|
 | `--year 2023` | todos | Filtrar por año exacto |
-| `--year 2020-2023` | todos | Filtrar por rango de años |
+| `--year 2020-2023` | todos | Filtrar por rango cerrado |
+| `--year 2022-` | todos | Desde 2022 en adelante (rango abierto) |
+| `--year -2020` | todos | Hasta 2020 (rango abierto) |
 | `--export matriz.csv` | todos | Exportar resultados a CSV |
 | `--rows N` | todos | Número máximo de resultados |
+
+Los rangos de año son gestionados centralmente por `utils.pubdate_filter()`, compartido por todos los módulos `ads_*.py`.
 
 ---
 
@@ -389,29 +339,6 @@ ads-download --from-csv mi_matriz.csv --dir ~/papers/matriz
 | `PUB_PDF` | PDF del publisher | Puede requerir suscripción |
 
 **Nombre de archivo generado:** `YYYY_PrimerApellido_PrimeraPalabraTitulo.pdf`
-
-Ejemplo: `2022_Frster_DELIGHT.pdf`
-
-**Verificación de paywall:** si la respuesta no empieza con `%PDF`, el archivo se descarta (evita guardar páginas HTML de error).
-
-**Opciones:**
-
-| Opción | Default | Descripción |
-|---|---|---|
-| `--dir` | `~/Downloads` | Directorio de descarga |
-| `--from-csv` | — | Descargar todos los papers de un CSV |
-
-**Ejemplos reales:**
-```bash
-ads-download "2022AJ....164..195F"
-# Directorio de descarga: /home/jurados/Downloads
-#   ↓ [EPRINT_PDF] DELIGHT: Deep Learning Identification of Galaxy Hosts o
-#   ✓ Guardado: 2022_Förster_DELIGHT.pdf (2276 KB)
-
-ads-download "2301.07688" --dir /tmp/papers
-#   ↓ [EPRINT_PDF] The Eighteenth Data Release of the Sloan Digital Sky Su
-#   ✓ Guardado: 2023_Almeida_Eighteenth.pdf (2581 KB)
-```
 
 ---
 

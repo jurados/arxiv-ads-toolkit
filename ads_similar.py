@@ -27,6 +27,7 @@ import sys
 import re
 from dotenv import load_dotenv
 from exporter import papers_to_csv
+from utils import pubdate_filter
 
 load_dotenv()
 
@@ -90,11 +91,7 @@ def build_text_query(keywords: list[str], year: str = None) -> str:
     query    = f"({kw_parts})"
 
     if year:
-        if "-" in year and len(year) > 4:
-            start, end = year.split("-", 1)
-            query += f" pubdate:[{start}-01 TO {end}-12]"
-        else:
-            query += f" pubdate:[{year}-01 TO {year}-12]"
+        query += f" {pubdate_filter(year)}"
 
     return query
 
@@ -104,15 +101,11 @@ def search_similar_bibcode(bibcode: str, year: str = None, rows: int = 20) -> tu
     query = f"similar(bibcode:{bibcode})"
 
     if year:
-        if "-" in year and len(year) > 4:
-            start, end = year.split("-", 1)
-            query += f" pubdate:[{start}-01 TO {end}-12]"
-        else:
-            query += f" pubdate:[{year}-01 TO {year}-12]"
+        query += f" {pubdate_filter(year)}"
 
     params = urllib.parse.urlencode({
         "q":    query,
-        "fl":   "title,bibcode,year,author,doctype,abstract",
+        "fl":   "title,bibcode,year,author,doctype,abstract,citation_count,doi,identifier",
         "rows": rows,
         "sort": "score desc",
     })
@@ -129,11 +122,13 @@ def search_similar_bibcode(bibcode: str, year: str = None, rows: int = 20) -> tu
 def search_similar_text(text: str, year: str = None, rows: int = 20) -> tuple[list, int, list]:
     """Extrae keywords del texto y busca en ADS."""
     keywords = extract_keywords(text)
+    if not keywords:
+        return [], 0, []
     query    = build_text_query(keywords, year)
 
     params = urllib.parse.urlencode({
         "q":    query,
-        "fl":   "title,bibcode,year,author,doctype,abstract",
+        "fl":   "title,bibcode,year,author,doctype,abstract,citation_count,doi,identifier",
         "rows": rows,
         "sort": "score desc",
     })

@@ -126,6 +126,13 @@ td code { font-size: .8em; }
   color: var(--green); font-weight: 700; margin: 2px;
 }
 
+/* New badge */
+.new-badge {
+  display: inline-block; background: rgba(63,185,80,.15); border: 1px solid var(--green);
+  border-radius: 4px; padding: 1px 7px; font-size: .72rem; font-weight: 700;
+  color: var(--green); margin-left: 6px; vertical-align: middle;
+}
+
 /* Anchor links */
 .section-anchor { scroll-margin-top: 64px; }
 
@@ -145,6 +152,7 @@ td code { font-size: .8em; }
   <a href="#estructura">Estructura del proyecto</a>
   <a href="#alias">Alias disponibles</a>
   <a href="#interfaz-web">Interfaz web</a>
+  <a href="#web-funcionalidades" class="sub">Funcionalidades</a>
   <a href="#web-rutas" class="sub">Rutas API</a>
   <a href="#agente">Agente arXiv → WhatsApp</a>
   <a href="#nasa-ads">Herramientas NASA ADS</a>
@@ -183,20 +191,21 @@ td code { font-size: .8em; }
 ├── notifier.py        # Traduce abstracts y envía por WhatsApp
 ├── digester.py        # Genera digest diario en HTML (digests/)
 ├── config.py          # Keywords, categorías y configuración
-├── run.sh             # Wrapper para el cron job
+├── run.sh             # Wrapper para el cron job (con bridge check)
 ├── app.py             # Interfaz web Flask (todas las herramientas ADS)
-├── run_web.sh         # Script para arrancar la interfaz web
+├── run_web.sh         # Script para arrancar la interfaz web (con bridge check)
 ├── templates/
 │   └── index.html     # Frontend de la app web (dark/light, ES/EN)
 ├── digests/           # Digest HTML diario (digest_YYYY-MM-DD.html)
 ├── summary.html       # Documentación HTML (este archivo)
+├── utils.py           # Utilidades compartidas: is_arxiv_id, pubdate_filter
 ├── ads_search.py      # Buscar papers por autor en NASA ADS
 ├── ads_topics.py      # Buscar papers por concepto/frase
 ├── ads_references.py  # Extraer referencias de un paper
 ├── ads_citations.py   # Ver quién cita un paper
 ├── ads_similar.py     # Encontrar papers similares
 ├── ads_chain.py       # Cadena de referencias multinivel
-├── ads_download.py    # Descargar PDFs de acceso abierto
+├── ads_download.py    # Descargar PDFs + get_papers_metadata_batch
 ├── exporter.py        # Módulo compartido de exportación CSV
 ├── pyproject.toml     # Metadatos del proyecto y entry points
 ├── requirements.txt   # Dependencias Python
@@ -227,7 +236,7 @@ td code { font-size: .8em; }
   <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>/home/jurados/arxiv-agent/run_web.sh
 # → http://localhost:5000</code></pre>
 
-  <h3>Funcionalidades</h3>
+  <h3 id="web-funcionalidades">Funcionalidades</h3>
   <table>
     <thead><tr><th>Característica</th><th>Detalle</th></tr></thead>
     <tbody>
@@ -242,11 +251,18 @@ td code { font-size: .8em; }
       <tr><td>Paginación</td><td>20 papers por página con navegación anterior/siguiente</td></tr>
       <tr><td>Ordenar por año</td><td>Botones ↑ / ↓ en cualquier resultado; preserva selección al cambiar página</td></tr>
       <tr><td>Badge de citas</td><td>Número de citas de NASA ADS mostrado en cada tarjeta</td></tr>
+      <tr><td>Badge arXiv <span class="new-badge">nuevo</span></td><td>ID de arXiv detectado del bibcode o campo <code>identifier</code>; enlaza a arxiv.org</td></tr>
+      <tr><td>Badge DOI <span class="new-badge">nuevo</span></td><td>DOI del paper (campo <code>doi</code> de ADS); enlaza a doi.org</td></tr>
       <tr><td>Paper-to-Code</td><td>Detección automática de repositorios (GitHub/GitLab/PyPI) en abstracts y comentarios</td></tr>
       <tr><td>Grafo de cadena</td><td>Visualización interactiva de la cadena de referencias con vis.js</td></tr>
       <tr><td>Digests guardados</td><td>Lista de digests HTML diarios accesibles desde el panel del agente</td></tr>
       <tr><td>Panel de configuración</td><td>Editar categorías, keywords, hours_back y max_results sin tocar el código</td></tr>
+      <tr><td>Restaurar valores por defecto <span class="new-badge">nuevo</span></td><td>Botón que restablece las keywords originales del proyecto</td></tr>
+      <tr><td>Panel Comparar ⚖️ <span class="new-badge">nuevo</span></td><td>Compara dos papers: referencias comunes, citaciones cruzadas, totales en paralelo</td></tr>
+      <tr><td>Editor número WhatsApp <span class="new-badge">nuevo</span></td><td>Cambiar el número destinatario del agente directamente desde la UI</td></tr>
       <tr><td>arXiv → ADS</td><td>Dry-run resuelve cada paper arXiv en NASA ADS: bibcode, citas, PDF directo</td></tr>
+      <tr><td>Scroll-to-top <span class="new-badge">nuevo</span></td><td>Botón flotante que aparece al bajar; vuelve al inicio del panel principal</td></tr>
+      <tr><td>Footer de paper <span class="new-badge">nuevo</span></td><td>Orden fijo: Traducir → PDF → Code → Bibcode → DOI → Refs → Citas → arXiv</td></tr>
     </tbody>
   </table>
 
@@ -262,13 +278,17 @@ td code { font-size: .8em; }
       <tr><td><code>/api/similar</code></td><td>POST</td><td>ads-similar (modo bibcode o texto)</td></tr>
       <tr><td><code>/api/chain</code></td><td>POST</td><td>ads-chain (devuelve papers + edges para el grafo)</td></tr>
       <tr><td><code>/api/download</code></td><td>POST</td><td>ads-download (devuelve el PDF)</td></tr>
+      <tr><td><code>/api/download_batch</code></td><td>POST</td><td><span class="new-badge">nuevo</span> Descarga batch con metadata en una sola llamada a ADS</td></tr>
+      <tr><td><code>/api/compare</code></td><td>POST</td><td><span class="new-badge">nuevo</span> Compara dos papers: refs/citas comunes (paralelo con ThreadPoolExecutor)</td></tr>
       <tr><td><code>/api/translate</code></td><td>POST</td><td>Traduce un texto al español (Google Translate)</td></tr>
       <tr><td><code>/api/export_csv</code></td><td>POST</td><td>CSV de papers seleccionados</td></tr>
       <tr><td><code>/api/export_bibtex</code></td><td>POST</td><td>BibTeX de papers seleccionados vía NASA ADS</td></tr>
       <tr><td><code>/api/arxiv/resolve</code></td><td>POST</td><td>Resuelve IDs arXiv a bibcodes de ADS (batch)</td></tr>
       <tr><td><code>/api/arxiv/bibtex_arxiv</code></td><td>GET</td><td>BibTeX de un paper directamente desde arXiv</td></tr>
+      <tr><td><code>/api/arxiv/dryrun</code></td><td>GET</td><td>Dry-run del agente; ahora retorna <code>hours_back</code></td></tr>
       <tr><td><code>/api/config</code></td><td>GET</td><td>Lee <code>config.py</code> y devuelve sus valores</td></tr>
       <tr><td><code>/api/config/save</code></td><td>POST</td><td>Escribe <code>config.py</code> y recarga el módulo en caliente</td></tr>
+      <tr><td><code>/api/config/whatsapp</code></td><td>POST</td><td><span class="new-badge">nuevo</span> Actualiza <code>WHATSAPP_NUMBER</code> en <code>config.py</code></td></tr>
       <tr><td><code>/api/arxiv/digests</code></td><td>GET</td><td>Lista los digests HTML guardados en <code>digests/</code></td></tr>
       <tr><td><code>/api/arxiv/digest</code></td><td>GET</td><td>Sirve el contenido de un digest específico</td></tr>
     </tbody>
@@ -298,7 +318,7 @@ td code { font-size: .8em; }
   <p><strong>Multimodalidad:</strong> <code>multimodal astronomy</code>, <code>multimodal astrophysics</code>, <code>foundation model astronomy</code></p>
 
   <h3>Formato del mensaje WhatsApp</h3>
-  <pre><code>🔭 arXiv Daily — 2026-04-24
+  <pre><code>🔭 arXiv Daily — 2026-04-25
 📄 6 paper(s) nuevo(s) en supernovas, transientes y ML
 ──────────────────────────────
 
@@ -307,7 +327,7 @@ td code { font-size: .8em; }
 Abstract traducido al español...
 
 👥 Autor 1, Autor 2, Autor 3
-📅 2026-04-23 15:06 UTC
+📅 2026-04-24 15:06 UTC
 🔗 http://arxiv.org/abs/2604.21759v1</code></pre>
 
   <h3>Programación (cron job)</h3>
@@ -326,13 +346,16 @@ cat /home/jurados/arxiv-agent/agent.log                      # ver logs</code></
   <h2 class="section-anchor" id="nasa-ads">2. Herramientas NASA ADS</h2>
   <p>Todas requieren <code>ADS_TOKEN</code> en <code>.env</code>. Token gratuito en <a href="https://ui.adsabs.harvard.edu/user/settings/token" target="_blank">ui.adsabs.harvard.edu</a>.</p>
   <p>Todas aceptan <code>--export archivo.csv</code> para acumular resultados en una matriz de literatura.</p>
+  <p>Los filtros de año son gestionados por <code>utils.pubdate_filter()</code>, compartido por todos los módulos <code>ads_*.py</code>.</p>
 
   <h3>Opciones comunes</h3>
   <table>
     <thead><tr><th>Opción</th><th>Aplica a</th><th>Descripción</th></tr></thead>
     <tbody>
       <tr><td><code>--year 2023</code></td><td>todos</td><td>Filtrar por año exacto</td></tr>
-      <tr><td><code>--year 2020-2023</code></td><td>todos</td><td>Filtrar por rango de años</td></tr>
+      <tr><td><code>--year 2020-2023</code></td><td>todos</td><td>Filtrar por rango cerrado</td></tr>
+      <tr><td><code>--year 2022-</code></td><td>todos</td><td>Desde 2022 en adelante (rango abierto)</td></tr>
+      <tr><td><code>--year -2020</code></td><td>todos</td><td>Hasta 2020 (rango abierto)</td></tr>
       <tr><td><code>--export matriz.csv</code></td><td>todos</td><td>Exportar resultados a CSV</td></tr>
       <tr><td><code>--rows N</code></td><td>todos</td><td>Número máximo de resultados</td></tr>
     </tbody>
@@ -419,7 +442,7 @@ ads-chain "2022AJ....164..195F" --levels 3 --export cadena.csv</code></pre>
 
   <!-- ads-download -->
   <h2 class="section-anchor" id="ads-download"><code>ads-download</code> — Descargar PDFs</h2>
-  <p>Descarga PDFs usando los links de acceso abierto de NASA ADS. Prioriza arXiv (siempre gratuito).</p>
+  <p>Descarga PDFs usando los links de acceso abierto de NASA ADS. Prioriza arXiv (siempre gratuito). Incluye descarga batch con una sola llamada a la API para metadata.</p>
   <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ads-download "2022AJ....164..195F"
 ads-download "2208.04310"
 ads-download "2022AJ....164..195F" --dir ~/papers
@@ -490,8 +513,7 @@ ads-chain "bibcode_seminal" --levels 3 --export mi_matriz.csv
   <!-- CREDENCIALES -->
   <h2 class="section-anchor" id="credenciales">Credenciales requeridas</h2>
   <p>Archivo <code>.env</code> en la raíz del proyecto:</p>
-  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ADS_TOKEN=tu_token_nasa_ads
-ANTHROPIC_API_KEY=tu_api_key_anthropic</code></pre>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copiar</button><code>ADS_TOKEN=tu_token_nasa_ads</code></pre>
   <table>
     <thead><tr><th>Variable</th><th>Usada en</th><th>Obtener</th></tr></thead>
     <tbody>
@@ -499,11 +521,6 @@ ANTHROPIC_API_KEY=tu_api_key_anthropic</code></pre>
         <td><code>ADS_TOKEN</code></td>
         <td>Todos los scripts <code>ads_*.py</code> y la app web</td>
         <td><a href="https://ui.adsabs.harvard.edu/user/settings/token" target="_blank">ui.adsabs.harvard.edu → Settings → Token</a> (gratuito)</td>
-      </tr>
-      <tr>
-        <td><code>ANTHROPIC_API_KEY</code></td>
-        <td><code>summarizer.py</code> (resumen con Claude)</td>
-        <td><a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a></td>
       </tr>
     </tbody>
   </table>

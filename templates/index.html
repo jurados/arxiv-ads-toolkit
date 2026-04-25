@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>arXiv Agent · NASA ADS Toolkit</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
 /* ── Variables ──────────────────────────────────────────── */
 :root {
@@ -157,14 +158,73 @@ header {
 .paper-card {
   background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
   padding: 18px 20px; transition: border-color .15s; box-shadow: var(--shadow);
+  display: grid; grid-template-columns: 28px 1fr; gap: 0 12px;
 }
 .paper-card:hover { border-color: var(--accent); }
+.paper-card.selected { border-color: var(--accent); background: rgba(88,166,255,.05); }
+[data-theme="light"] .paper-card.selected { background: rgba(9,105,218,.05); }
+
+.paper-checkbox {
+  margin-top: 2px; width: 16px; height: 16px; cursor: pointer;
+  accent-color: var(--accent); flex-shrink: 0;
+}
+.paper-body { min-width: 0; }
+
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin-top: 20px; padding: 4px 0;
+}
+.page-btn {
+  padding: 6px 16px; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text2); border-radius: 6px; cursor: pointer; font-size: .82rem;
+  font-weight: 600; transition: all .12s; font-family: inherit;
+}
+.page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.page-btn:disabled { opacity: .4; cursor: not-allowed; }
+.page-info { font-size: .82rem; color: var(--text2); min-width: 90px; text-align: center; }
+
+.chain-graph-container {
+  display: none; height: 520px; border: 1px solid var(--border);
+  border-radius: 8px; margin-top: 12px; background: var(--card-bg);
+}
+.chain-graph-hint {
+  text-align: center; font-size: .72rem; color: var(--text2); margin-top: 6px;
+}
+.btn-sort {
+  padding: 4px 9px; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text2); border-radius: 5px; cursor: pointer; font-size: .78rem;
+  font-weight: 700; transition: all .12s; font-family: inherit;
+}
+.btn-sort:hover, .btn-sort.active { border-color: var(--accent); color: var(--accent); }
+
+.badge-cites { background: #1a3a2a; color: #7ee787; }
+[data-theme="light"] .badge-cites { background: #dcfce7; color: #15803d; }
+.ads-resolve-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 12px; padding: 10px 14px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  font-size: .82rem; color: var(--text2);
+}
+.ads-status { font-size: .72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+.ads-status-found  { background: rgba(63,185,80,.15); color: var(--green); }
+.ads-status-missing { background: rgba(210,153,34,.12); color: var(--yellow); }
+.config-section { margin-bottom: 24px; }
+.config-label { font-size: .8rem; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.config-textarea {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: .85rem;
+  font-family: "SFMono-Regular", Consolas, monospace; resize: vertical;
+  outline: none; transition: border-color .15s;
+}
+.config-textarea:focus { border-color: var(--accent); }
+.config-inline { display: flex; gap: 20px; flex-wrap: wrap; }
+.config-inline .form-group { flex: 1; min-width: 140px; }
 
 .paper-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
 .paper-title { font-size: .95rem; font-weight: 700; line-height: 1.4; }
 .paper-title a { color: var(--text); }
 .paper-title a:hover { color: var(--accent); text-decoration: none; }
-.paper-badges { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+.paper-badges { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 .badge {
   font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
   text-transform: uppercase; letter-spacing: .04em;
@@ -175,8 +235,23 @@ header {
 [data-theme="light"] .badge-type { background: #dcfce7; color: #15803d; }
 .badge-level { background: #3d2a5a; color: var(--purple); }
 [data-theme="light"] .badge-level { background: #ede9fe; color: #6d28d9; }
+.badge-bibcode { background: #1e2a3a; color: var(--text2); font-family: monospace; font-size: .65rem; letter-spacing: .02em; white-space: nowrap; text-transform: none; }
+.badge-bibcode:hover { color: var(--accent); }
+[data-theme="light"] .badge-bibcode { background: #e8edf5; color: #64748b; }
+.badge-code { background: #4e3505; color: #d29922; cursor: pointer; }
+[data-theme="light"] .badge-code { background: #fff8e1; color: #9a6700; }
+.badge-code:hover { border: 1px solid var(--yellow); }
 
 .paper-authors { font-size: .8rem; color: var(--text2); margin-bottom: 8px; }
+.author-link { cursor: pointer; color: var(--text2); }
+.author-link:hover { color: var(--accent); text-decoration: underline; }
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  padding: 10px 16px; border-radius: 8px; font-size: .84rem; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35); max-width: 380px; line-height: 1.4;
+  animation: toast-in .18s ease;
+}
+@keyframes toast-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 .paper-abstract {
   font-size: .83rem; color: var(--text2); line-height: 1.6;
   max-height: 80px; overflow: hidden; position: relative; transition: max-height .3s;
@@ -236,16 +311,19 @@ header {
   text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px;
 }
 .agent-paper {
-  background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 14px 16px; margin-bottom: 10px;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px 20px; margin-bottom: 12px; transition: border-color .15s;
+  box-shadow: var(--shadow);
 }
-.agent-paper-title { font-size: .92rem; font-weight: 700; margin-bottom: 4px; }
+.agent-paper:hover { border-color: var(--accent); }
+.agent-paper-title { font-size: .95rem; font-weight: 700; margin-bottom: 6px; line-height: 1.4; }
 .agent-paper-title a { color: var(--text); }
 .agent-paper-title a:hover { color: var(--accent); text-decoration: none; }
-.agent-paper-meta { font-size: .75rem; color: var(--text2); margin-bottom: 8px; }
+.agent-paper-meta { font-size: .8rem; color: var(--text2); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agent-paper-abstract {
-  font-size: .82rem; color: var(--text2); line-height: 1.6;
+  font-size: .83rem; color: var(--text2); line-height: 1.65;
   max-height: 72px; overflow: hidden; transition: max-height .3s; position: relative;
+  margin-bottom: 6px;
 }
 .agent-paper-abstract.expanded { max-height: 600px; }
 .agent-paper-abstract::after {
@@ -253,6 +331,7 @@ header {
   background: linear-gradient(transparent, var(--card-bg)); pointer-events: none;
 }
 .agent-paper-abstract.expanded::after { opacity: 0; }
+.agent-paper-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 .logs-box {
   background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
   padding: 14px 16px; font-family: "SFMono-Regular", Consolas, monospace;
@@ -292,6 +371,18 @@ header {
   font-size: .73rem; background: var(--bg3); border: 1px solid var(--border);
   border-radius: 20px; padding: 2px 10px; color: var(--text2);
 }
+
+/* ── Scroll to top ──────────────────────────────────────── */
+#btn-scroll-top {
+  position: fixed; bottom: 28px; right: 28px; z-index: 999;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--accent); color: #fff; border: none;
+  font-size: 1.1rem; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+  display: flex; align-items: center; justify-content: center;
+}
+#btn-scroll-top.visible { opacity: 1; pointer-events: auto; }
+#btn-scroll-top:hover { opacity: .85; }
 
 /* ── Download panel ─────────────────────────────────────── */
 .download-result {
@@ -408,6 +499,9 @@ table.matrix td.cell-abstract {
   </div>
 </header>
 
+<!-- Scroll to top -->
+<button id="btn-scroll-top" onclick="document.querySelector('.main').scrollTo({top:0,behavior:'smooth'})" title="Volver arriba">↑</button>
+
 <!-- APP LAYOUT -->
 <div class="app">
 
@@ -439,9 +533,15 @@ table.matrix td.cell-abstract {
     <div class="nav-item" data-panel="download" onclick="showPanel('download')">
       <span class="icon">⬇️</span><span data-i18n="nav_dl">Descargar PDF</span>
     </div>
+    <div class="nav-item" data-panel="compare" onclick="showPanel('compare')">
+      <span class="icon">⚖️</span><span data-i18n="nav_compare">Comparar</span>
+    </div>
     <div class="sidebar-label" style="margin-top:8px" data-i18n="nav_section_tools">Herramientas</div>
     <div class="nav-item" data-panel="matrix" onclick="showPanel('matrix')">
       <span class="icon">📊</span><span data-i18n="nav_matrix">Matriz CSV</span>
+    </div>
+    <div class="nav-item" data-panel="config" onclick="showPanel('config')">
+      <span class="icon">⚙️</span><span data-i18n="nav_config">Configuración</span>
     </div>
   </nav>
 
@@ -451,16 +551,21 @@ table.matrix td.cell-abstract {
     <!-- ARXIV AGENT -->
     <div class="panel" id="panel-agent">
       <div class="panel-title" data-i18n="agent_title">Agente arXiv Diario</div>
-      <div class="panel-desc" data-i18n="agent_desc">Estado del agente, dry-run y logs. No envía nada a WhatsApp.</div>
+      <div class="panel-desc" data-i18n="agent_desc">Estado del agente, dry-run y envío manual a WhatsApp.</div>
 
       <div id="agent-status-area">
         <div class="state-loading"><div class="spinner"></div></div>
       </div>
 
       <div class="section-divider" data-i18n="agent_section_dryrun">Dry-run — papers de hoy</div>
-      <button class="btn-run" onclick="runDryRun()" id="btn-dryrun">
-        <span>▶</span><span data-i18n="agent_btn_run">Buscar papers ahora</span>
-      </button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-run" onclick="runDryRun()" id="btn-dryrun">
+          <span>▶</span><span data-i18n="agent_btn_run">Buscar papers ahora</span>
+        </button>
+        <button class="btn-run" onclick="sendToWhatsApp()" id="btn-send-wa" style="background:var(--green);border-color:var(--green)">
+          <span>📲</span><span data-i18n="agent_btn_send">Enviar a WhatsApp</span>
+        </button>
+      </div>
       <div id="agent-dryrun-results"></div>
 
       <div class="section-divider" style="margin-top:32px">
@@ -468,6 +573,14 @@ table.matrix td.cell-abstract {
         <button class="toggle-abstract" style="margin-left:8px" onclick="loadLogs()" data-i18n="btn_refresh">Refrescar</button>
       </div>
       <div id="agent-logs-area">
+        <div class="state-loading"><div class="spinner"></div></div>
+      </div>
+
+      <div class="section-divider" style="margin-top:32px">
+        <span data-i18n="digests_title">Digests guardados</span>
+        <button class="toggle-abstract" style="margin-left:8px" onclick="loadDigests()" data-i18n="btn_refresh">Refrescar</button>
+      </div>
+      <div id="agent-digests-area">
         <div class="state-loading"><div class="spinner"></div></div>
       </div>
     </div>
@@ -665,6 +778,26 @@ table.matrix td.cell-abstract {
       <div id="dl-results"></div>
     </div>
 
+    <!-- COMPARE -->
+    <div class="panel" id="panel-compare">
+      <div class="panel-title" data-i18n="compare_title">Comparar dos papers</div>
+      <div class="panel-desc" data-i18n="compare_desc">Referencias y citaciones en común entre dos papers.</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label data-i18n="compare_label_a">Paper A — Bibcode o arXiv ID</label>
+          <input type="text" id="compare-a" placeholder="2022AJ....164..195F" />
+        </div>
+        <div class="form-group">
+          <label data-i18n="compare_label_b">Paper B — Bibcode o arXiv ID</label>
+          <input type="text" id="compare-b" placeholder="2208.04310" />
+        </div>
+      </div>
+      <button class="btn-run" onclick="runCompare()">
+        <span>⚖️</span><span data-i18n="btn_run">Ejecutar</span>
+      </button>
+      <div id="compare-results"></div>
+    </div>
+
     <!-- MATRIX -->
     <div class="panel" id="panel-matrix">
       <div class="panel-title" data-i18n="matrix_title">Matriz de Literatura</div>
@@ -689,6 +822,15 @@ table.matrix td.cell-abstract {
       </div>
 
       <div id="matrix-results"></div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="panel" id="panel-config">
+      <div class="panel-title" data-i18n="config_title">Configuración del Agente</div>
+      <div class="panel-desc" data-i18n="config_desc">Edita categorías, keywords y parámetros sin tocar config.py.</div>
+      <div id="config-area">
+        <div class="state-loading"><div class="spinner"></div></div>
+      </div>
     </div>
 
   </main>
@@ -739,9 +881,11 @@ const STRINGS = {
     dl_title: "Descargar PDF",
     dl_desc: "Descarga el PDF de un paper via los links open-access de NASA ADS. Prioriza arXiv.",
     agent_title: "Agente arXiv Diario",
-    agent_desc: "Estado del agente, dry-run y logs. No envía nada a WhatsApp.",
+    agent_desc: "Estado del agente, dry-run y envío manual a WhatsApp.",
     agent_section_dryrun: "Dry-run — papers de hoy",
     agent_btn_run: "Buscar papers ahora",
+    agent_btn_send: "Enviar a WhatsApp",
+    bibcode_copy_title: "Copiar bibcode",
     agent_section_logs: "Logs",
     btn_refresh: "Refrescar",
     agent_last_run: "Último envío",
@@ -751,6 +895,7 @@ const STRINGS = {
     agent_categories: "Categorías",
     agent_hours: "Ventana de tiempo",
     agent_whatsapp: "WhatsApp destino",
+    agent_whatsapp_edit: "Editar número",
     agent_no_papers: "No hay papers nuevos en las últimas",
     agent_hours_unit: "horas con los keywords actuales.",
     agent_no_logs: "No hay archivo agent.log todavía.",
@@ -800,6 +945,48 @@ const STRINGS = {
 
     results_count: (n, total) => `<strong>${n}</strong> resultado(s) mostrados${total ? ` de ${total} totales` : ""}`,
     btn_export: "⬇ Exportar CSV",
+    btn_bibtex: "⬇ BibTeX",
+    btn_pdf: "⬇ PDF",
+    btn_pdfs: n => `⬇ PDFs (${n})`,
+    select_all: "Seleccionar todo",
+    deselect_all: "Deseleccionar todo",
+    sel_count: n => `${n} seleccionado(s)`,
+    page_info: (cur, total) => `Página ${cur} de ${total}`,
+    page_prev: "← Anterior",
+    page_next: "Siguiente →",
+    sort_label: "Año:",
+    sort_desc: "↓ reciente",
+    sort_asc: "↑ antiguo",
+    view_list: "📋 Lista",
+    view_graph: "🌐 Grafo",
+    chain_graph_hint: "Clic en un nodo para abrir en ADS · Scroll para zoom · Arrastrar para mover",
+    digests_title: "Digests guardados",
+    digests_empty: "No hay digests guardados aún. Ejecuta el agente o un dry-run.",
+    nav_compare: "Comparar",
+    compare_title: "Comparar dos papers",
+    compare_desc: "Muestra las referencias y citaciones en común entre dos papers.",
+    compare_label_a: "Paper A — Bibcode o arXiv ID",
+    compare_label_b: "Paper B — Bibcode o arXiv ID",
+    compare_common_refs: n => `Referencias en común (${n})`,
+    compare_common_cits: n => `Citaciones en común (${n})`,
+    compare_none: "Ninguna en común.",
+    compare_summary: (ra, rb, ca, cb) => `Refs: ${ra} · ${rb} | Citas: ${ca} · ${cb}`,
+    config_restore: "Restaurar defaults",
+    nav_config: "Configuración",
+    config_title: "Configuración del Agente",
+    config_desc: "Edita categorías, keywords y parámetros sin tocar config.py.",
+    config_cats: "Categorías arXiv (una por línea)",
+    config_kws: "Keywords (uno por línea)",
+    config_hours: "Horas hacia atrás",
+    config_max: "Máx. resultados",
+    config_save: "Guardar",
+    config_saved: "✓ Guardado",
+    resolve_btn: "🔍 Resolver en ADS",
+    resolving: "Resolviendo...",
+    resolve_found: "En ADS",
+    resolve_missing: "No en ADS aún",
+    btn_bibtex_arxiv: "BibTeX (arXiv)",
+    btn_bibtex_ads: "BibTeX (ADS)",
     lbl_keywords: "Keywords extraídos:",
     no_abstract: "Sin abstract disponible.",
     expand: "Mostrar más",
@@ -846,9 +1033,11 @@ const STRINGS = {
     dl_title: "Download PDF",
     dl_desc: "Downloads the PDF via NASA ADS open-access links. Prioritizes arXiv.",
     agent_title: "arXiv Daily Agent",
-    agent_desc: "Agent status, dry-run and logs. Does not send anything to WhatsApp.",
+    agent_desc: "Agent status, dry-run and manual WhatsApp send.",
     agent_section_dryrun: "Dry-run — today's papers",
     agent_btn_run: "Fetch papers now",
+    agent_btn_send: "Send to WhatsApp",
+    bibcode_copy_title: "Copy bibcode",
     agent_section_logs: "Logs",
     btn_refresh: "Refresh",
     agent_last_run: "Last sent",
@@ -858,6 +1047,7 @@ const STRINGS = {
     agent_categories: "Categories",
     agent_hours: "Time window",
     agent_whatsapp: "WhatsApp target",
+    agent_whatsapp_edit: "Edit number",
     agent_no_papers: "No new papers in the last",
     agent_hours_unit: "hours with current keywords.",
     agent_no_logs: "No agent.log file yet.",
@@ -907,6 +1097,48 @@ const STRINGS = {
 
     results_count: (n, total) => `<strong>${n}</strong> results shown${total ? ` out of ${total} total` : ""}`,
     btn_export: "⬇ Export CSV",
+    btn_bibtex: "⬇ BibTeX",
+    btn_pdf: "⬇ PDF",
+    btn_pdfs: n => `⬇ PDFs (${n})`,
+    select_all: "Select all",
+    deselect_all: "Deselect all",
+    sel_count: n => `${n} selected`,
+    page_info: (cur, total) => `Page ${cur} of ${total}`,
+    page_prev: "← Previous",
+    page_next: "Next →",
+    sort_label: "Year:",
+    sort_desc: "↓ newest",
+    sort_asc: "↑ oldest",
+    view_list: "📋 List",
+    view_graph: "🌐 Graph",
+    chain_graph_hint: "Click a node to open in ADS · Scroll to zoom · Drag to pan",
+    digests_title: "Saved digests",
+    digests_empty: "No saved digests yet. Run the agent or a dry-run.",
+    nav_compare: "Compare",
+    compare_title: "Compare two papers",
+    compare_desc: "Shows references and citations shared between two papers.",
+    compare_label_a: "Paper A — Bibcode or arXiv ID",
+    compare_label_b: "Paper B — Bibcode or arXiv ID",
+    compare_common_refs: n => `Common references (${n})`,
+    compare_common_cits: n => `Common citations (${n})`,
+    compare_none: "None in common.",
+    compare_summary: (ra, rb, ca, cb) => `Refs: ${ra} · ${rb} | Cites: ${ca} · ${cb}`,
+    config_restore: "Restore defaults",
+    nav_config: "Settings",
+    config_title: "Agent Settings",
+    config_desc: "Edit categories, keywords and parameters without touching config.py.",
+    config_cats: "arXiv Categories (one per line)",
+    config_kws: "Keywords (one per line)",
+    config_hours: "Hours back",
+    config_max: "Max results",
+    config_save: "Save",
+    config_saved: "✓ Saved",
+    resolve_btn: "🔍 Resolve in ADS",
+    resolving: "Resolving...",
+    resolve_found: "In ADS",
+    resolve_missing: "Not in ADS yet",
+    btn_bibtex_arxiv: "BibTeX (arXiv)",
+    btn_bibtex_ads: "BibTeX (ADS)",
     lbl_keywords: "Extracted keywords:",
     no_abstract: "No abstract available.",
     expand: "Show more",
@@ -929,6 +1161,16 @@ const STRINGS = {
 let currentLang = "es";
 let currentTheme = "dark";
 let currentPapers = [];
+let selectedIndices = new Set();
+let currentPage = 0;
+let currentContainer = null;
+let currentResultsTotal = null;
+let currentExtraHtml = "";
+const PAGE_SIZE = 20;
+let originalPapers = [];
+let currentSort = null;
+let chainData = { papers: [], edges: [], seed: "" };
+let chainViewMode = "list";
 
 function t(key, ...args) {
   const s = STRINGS[currentLang];
@@ -966,7 +1208,10 @@ function showPanel(name) {
   document.getElementById("panel-" + name).classList.add("active");
   document.querySelector(`[data-panel="${name}"]`).classList.add("active");
   currentPapers = [];
-  if (name === "agent") { loadAgentStatus(); loadLogs(); }
+  selectedIndices = new Set();
+  currentPage = 0;
+  if (name === "agent") { loadAgentStatus(); loadLogs(); loadDigests(); }
+  if (name === "config") { loadConfig(); }
 }
 
 /* ── Similar mode ───────────────────────────────────────── */
@@ -995,38 +1240,270 @@ function renderState(container, type, extra) {
 function renderPapers(container, papers, total, extraHtml) {
   if (!papers || papers.length === 0) { renderState(container, "no-results"); return; }
   currentPapers = papers;
+  originalPapers = [...papers];
+  currentSort = null;
+  selectedIndices = new Set();
+  currentPage = 0;
+  currentContainer = container;
+  currentResultsTotal = total;
+  currentExtraHtml = extraHtml || "";
+  _renderPage();
+}
+
+function _renderPage() {
+  const totalPages = Math.ceil(currentPapers.length / PAGE_SIZE);
+  const start = currentPage * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, currentPapers.length);
+
+  const sortDescClass = currentSort === "desc" ? " active" : "";
+  const sortAscClass  = currentSort === "asc"  ? " active" : "";
   let html = `<div class="results-header">
-    <span class="results-count">${t("results_count", papers.length, total)}</span>
-    <div style="display:flex;gap:8px">
-      ${extraHtml || ""}
+    <span class="results-count">${t("results_count", currentPapers.length, currentResultsTotal)}</span>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      ${currentExtraHtml}
+      <span style="font-size:.75rem;color:var(--text2)">${t("sort_label")}</span>
+      <button class="btn-sort${sortDescClass}" onclick="sortByYear('desc')">${t("sort_desc")}</button>
+      <button class="btn-sort${sortAscClass}"  onclick="sortByYear('asc')">${t("sort_asc")}</button>
+      <span id="sel-count" style="font-size:.78rem;color:var(--text2)">${selectedIndices.size > 0 ? t("sel_count", selectedIndices.size) : ""}</span>
+      <button class="btn-export" id="btn-sel-all" onclick="toggleSelectAll()">${selectedIndices.size === currentPapers.length && currentPapers.length > 0 ? t("deselect_all") : t("select_all")}</button>
+      <button class="btn-export" onclick="exportBibTeX()">${t("btn_bibtex")}</button>
       <button class="btn-export" onclick="exportCSV()">${t("btn_export")}</button>
+      <button class="btn-export" id="btn-dl-pdfs" onclick="downloadSelectedPDFs()" ${selectedIndices.size === 0 ? "disabled title='Selecciona al menos un paper'" : ""}>${t("btn_pdfs", selectedIndices.size)}</button>
     </div>
   </div>`;
+
   html += `<div class="papers-list">`;
-  for (let i = 0; i < papers.length; i++) {
-    const p = papers[i];
+  for (let i = start; i < end; i++) {
+    const p = currentPapers[i];
     const lvl = p.level != null ? `<span class="badge badge-level">${t("level_label")} ${p.level}</span>` : "";
     const abstract = p.abstract || t("no_abstract");
-    html += `<div class="paper-card">
-      <div class="paper-top">
-        <div class="paper-title"><a href="${p.url}" target="_blank">${escHtml(p.title)}</a></div>
-        <div class="paper-badges">
-          ${p.year ? `<span class="badge badge-year">${p.year}</span>` : ""}
-          ${p.doctype ? `<span class="badge badge-type">${p.doctype}</span>` : ""}
-          ${lvl}
+    const checked = selectedIndices.has(i) ? "checked" : "";
+    const selClass = selectedIndices.has(i) ? " selected" : "";
+    const citeBadge = p.citation_count != null
+      ? `<span class="badge badge-cites">📊 ${p.citation_count}</span>` : "";
+    const pdfBtn = p.bibcode
+      ? `<button class="btn-translate" onclick="downloadPaperPDF('${escHtml(p.bibcode)}', this)">${t("btn_pdf")}</button>`
+      : "";
+    const codeBtn = p.code_url
+      ? `<a href="${p.code_url}" target="_blank"><button class="btn-translate" style="border-color:var(--yellow);color:var(--yellow)">💻 Code</button></a>`
+      : "";
+
+    html += `<div class="paper-card${selClass}" id="card-${i}">
+      <input type="checkbox" class="paper-checkbox" id="chk-${i}" onchange="toggleSelect(${i})" style="margin-top:4px" ${checked}>
+      <div class="paper-body">
+        <div class="paper-top">
+          <div class="paper-title"><a href="${p.url}" target="_blank">${escHtml(p.title)}</a></div>
+          <div class="paper-badges">
+            ${p.year ? `<span class="badge badge-year">${p.year}</span>` : ""}
+            ${p.doctype ? `<span class="badge badge-type">${p.doctype}</span>` : ""}
+            ${citeBadge}
+            ${lvl}
+          </div>
         </div>
-      </div>
-      ${p.authors ? `<div class="paper-authors">${escHtml(p.authors)}</div>` : ""}
-      <div class="paper-abstract" id="abs-${i}">${escHtml(abstract)}</div>
-      ${abstract.length > 200 ? `<button class="toggle-abstract" onclick="toggleAbs(${i})">${t("expand")}</button>` : ""}
-      <div class="paper-footer">
-        <button class="btn-translate" id="trbtn-${i}" onclick="translateAbstract(${i})" title="${t('btn_translate')}">${t("btn_translate")}</button>
-        <a class="link-ads" href="${p.url}" target="_blank">${t("open_ads")}</a>
+        ${(p.author_list && p.author_list.length) ? `<div class="paper-authors">${
+          p.author_list.map(a =>
+            `<span class="author-link" title="Buscar papers de ${escHtml(a)}" onclick="searchAuthorFromCard(${escHtml(JSON.stringify(a))})">${escHtml(a)}</span>`
+          ).join(", ")
+          + (p.author_count > 4 ? ` <span style="color:var(--text2)">+${p.author_count - 4} more</span>` : "")
+        }</div>` : (p.authors ? `<div class="paper-authors">${escHtml(p.authors)}</div>` : "")}
+        <div class="paper-abstract" id="abs-${i}">${escHtml(abstract)}</div>
+        ${abstract.length > 200 ? `<button class="toggle-abstract" onclick="toggleAbs(${i})">${t("expand")}</button>` : ""}
+        <div class="paper-footer">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <button class="btn-translate" id="trbtn-${i}" onclick="translateAbstract(${i})">${t("btn_translate")}</button>
+            ${pdfBtn}
+            ${codeBtn}
+            ${p.bibcode ? `<span class="badge badge-bibcode" onclick="copyBibcode('${escHtml(p.bibcode)}')" title="${t('bibcode_copy_title')}: ${escHtml(p.bibcode)}" style="cursor:pointer;user-select:none">📋 ${escHtml(p.bibcode)}</span>` : ""}
+            ${p.doi ? `<a href="https://doi.org/${encodeURIComponent(p.doi)}" target="_blank"><span class="badge" style="background:#1e3a5f;color:#93c5fd;text-transform:none;font-size:.68rem;cursor:pointer" title="${escHtml(p.doi)}">DOI</span></a>` : ""}
+            ${p.bibcode ? `<button class="btn-translate" style="border-color:var(--accent);color:var(--accent)" onclick="goToRefs('${escHtml(p.bibcode)}')" title="Ver referencias de este paper">→ Refs</button>` : ""}
+            ${p.bibcode ? `<button class="btn-translate" style="border-color:var(--green);color:var(--green)" onclick="goToCits('${escHtml(p.bibcode)}')" title="Ver quién cita este paper">→ Citas</button>` : ""}
+            ${p.arxiv_id ? `<a href="https://arxiv.org/abs/${encodeURIComponent(p.arxiv_id)}" target="_blank"><span class="badge" style="background:#b91c1c;color:#fecaca;text-transform:none;font-size:.68rem;cursor:pointer">arXiv</span></a>` : ""}
+          </div>
+          <a class="link-ads" href="${p.url}" target="_blank">${t("open_ads")}</a>
+        </div>
       </div>
     </div>`;
   }
   html += `</div>`;
-  container.innerHTML = html;
+
+  if (totalPages > 1) {
+    html += `<div class="pagination">
+      <button class="page-btn" onclick="changePage(-1)" ${currentPage === 0 ? "disabled" : ""}>${t("page_prev")}</button>
+      <span class="page-info">${t("page_info", currentPage + 1, totalPages)}</span>
+      <button class="page-btn" onclick="changePage(1)" ${currentPage >= totalPages - 1 ? "disabled" : ""}>${t("page_next")}</button>
+    </div>`;
+  }
+
+  currentContainer.innerHTML = html;
+}
+
+function changePage(delta) {
+  const totalPages = Math.ceil(currentPapers.length / PAGE_SIZE);
+  currentPage = Math.max(0, Math.min(totalPages - 1, currentPage + delta));
+  _renderPage();
+  const panel = currentContainer.closest(".panel");
+  (panel || currentContainer).scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function toggleSelect(i) {
+  if (selectedIndices.has(i)) selectedIndices.delete(i);
+  else selectedIndices.add(i);
+  const card = document.getElementById("card-" + i);
+  if (card) card.classList.toggle("selected", selectedIndices.has(i));
+  const el = document.getElementById("sel-count");
+  const btn = document.getElementById("btn-sel-all");
+  if (el) el.textContent = selectedIndices.size > 0 ? t("sel_count", selectedIndices.size) : "";
+  if (btn) btn.textContent = selectedIndices.size === currentPapers.length ? t("deselect_all") : t("select_all");
+}
+
+function toggleSelectAll() {
+  const allSelected = selectedIndices.size === currentPapers.length;
+  selectedIndices = allSelected ? new Set() : new Set(currentPapers.map((_, i) => i));
+  _renderPage();
+}
+
+function getExportPapers() {
+  return selectedIndices.size > 0
+    ? [...selectedIndices].sort((a,b) => a-b).map(i => currentPapers[i])
+    : currentPapers;
+}
+
+function sortByYear(dir) {
+  if (currentSort === dir) {
+    currentPapers = [...originalPapers];
+    currentSort = null;
+  } else {
+    currentPapers = [...originalPapers].sort((a, b) => {
+      const ya = parseInt(a.year) || 0;
+      const yb = parseInt(b.year) || 0;
+      return dir === "asc" ? ya - yb : yb - ya;
+    });
+    currentSort = dir;
+  }
+  selectedIndices = new Set();
+  currentPage = 0;
+  _renderPage();
+}
+
+async function downloadPaperPDF(bibcode, btn) {
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "...";
+  try {
+    const res = await fetch("/api/download", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ identifier: bibcode })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || res.statusText);
+      return;
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : "paper.pdf";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    showToast("Error: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+/* ── Chain graph ─────────────────────────────────────────── */
+function toggleChainView() {
+  const btn       = document.getElementById("chain-view-toggle");
+  const listView  = document.querySelector("#chain-results .papers-list");
+  const pageCtrl  = document.querySelector("#chain-results .pagination");
+  const graphView = document.getElementById("chain-graph-view");
+  if (!graphView) return;
+
+  if (chainViewMode === "list") {
+    chainViewMode = "graph";
+    if (listView)  listView.style.display  = "none";
+    if (pageCtrl)  pageCtrl.style.display  = "none";
+    graphView.style.display = "block";
+    if (btn) btn.textContent = t("view_list");
+    if (!graphView.dataset.rendered) { _buildGraph(graphView); graphView.dataset.rendered = "1"; }
+  } else {
+    chainViewMode = "list";
+    if (listView)  listView.style.display  = "";
+    if (pageCtrl)  pageCtrl.style.display  = "";
+    graphView.style.display = "none";
+    if (btn) btn.textContent = t("view_graph");
+  }
+}
+
+function _buildGraph(container) {
+  if (typeof vis === "undefined") {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text2)">Cargando visualizador...</div>';
+    return;
+  }
+  const { papers, edges, seed } = chainData;
+  const nodesArr = [];
+  const edgesArr = [];
+
+  nodesArr.push({
+    id: seed, label: seed.length > 16 ? seed.slice(-14) : seed,
+    title: `<b>SEMILLA</b><br>${seed}`,
+    color: { background: "#b91c1c", border: "#f85149" },
+    font: { color: "#fef2f2", size: 12, bold: true },
+    level: 0, shape: "box", borderWidth: 2,
+  });
+
+  const lvlColors = [
+    { background: "#1d4ed8", border: "#58a6ff" },
+    { background: "#15803d", border: "#3fb950" },
+    { background: "#6d28d9", border: "#bc8cff" },
+    { background: "#92400e", border: "#d29922" },
+  ];
+
+  papers.forEach(p => {
+    const lvl   = p.level || 1;
+    const col   = lvlColors[(lvl - 1) % lvlColors.length];
+    const auth  = p.authors ? p.authors.split(",")[0].trim().split(" ").pop().slice(0, 10) : "?";
+    nodesArr.push({
+      id: p.bibcode,
+      label: `${p.year || "?"}\n${auth}`,
+      title: `<b>${escHtml(p.title)}</b><br>${escHtml(p.authors || "")}<br><a href="${p.url}" target="_blank">ADS →</a>`,
+      color: col, font: { color: "#e6edf3", size: 11 },
+      level: lvl, url: p.url, shape: "box",
+    });
+  });
+
+  edges.forEach((e, i) => edgesArr.push({
+    id: i, from: e.source, to: e.target, arrows: "to",
+    color: { color: "#30363d", highlight: "#58a6ff", hover: "#58a6ff" },
+  }));
+
+  const network = new vis.Network(
+    container,
+    { nodes: new vis.DataSet(nodesArr), edges: new vis.DataSet(edgesArr) },
+    {
+      layout: { hierarchical: { enabled: true, direction: "LR", sortMethod: "directed", levelSeparation: 200, nodeSpacing: 80 } },
+      physics: false,
+      nodes: { borderWidth: 1, borderWidthSelected: 2 },
+      edges: { smooth: { type: "cubicBezier", forceDirection: "horizontal", roundness: 0.5 } },
+      interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true },
+    }
+  );
+  network.on("click", p => {
+    if (!p.nodes.length) return;
+    const n = nodesArr.find(x => x.id === p.nodes[0]);
+    if (n && n.url) window.open(n.url, "_blank");
+    else if (p.nodes[0] === seed) window.open(`https://ui.adsabs.harvard.edu/abs/${seed}`, "_blank");
+  });
+
+  const hint = document.createElement("p");
+  hint.className = "chain-graph-hint";
+  hint.textContent = t("chain_graph_hint");
+  container.insertAdjacentElement("afterend", hint);
 }
 
 function toggleAbs(i) {
@@ -1079,19 +1556,107 @@ function escHtml(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
+function showToast(msg, type = "error") {
+  const existing = document.getElementById("_toast");
+  if (existing) existing.remove();
+  const div = document.createElement("div");
+  div.id = "_toast";
+  div.className = "toast";
+  div.style.background = type === "error" ? "var(--red)" : "var(--green)";
+  div.style.color = "#fff";
+  div.textContent = msg;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 4000);
+}
+
+function goToRefs(bibcode) {
+  showPanel("references");
+  const input = document.getElementById("refs-id");
+  if (input) input.value = bibcode;
+  setTimeout(() => runRefs(), 80);
+}
+
+function goToCits(bibcode) {
+  showPanel("citations");
+  const input = document.getElementById("cits-id");
+  if (input) input.value = bibcode;
+  setTimeout(() => runCits(), 80);
+}
+
+function searchAuthorFromCard(authorName) {
+  showPanel("search");
+  const input  = document.getElementById("search-author");
+  const select = document.getElementById("search-first-author");
+  if (input)  input.value = authorName;
+  if (select) select.value = "false";
+  setTimeout(() => runSearch(), 80);
+}
+
 /* ── Export CSV ─────────────────────────────────────────── */
 async function exportCSV() {
-  if (!currentPapers.length) return;
+  const papers = getExportPapers();
+  if (!papers.length) return;
   const res = await fetch("/api/export_csv", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ papers: currentPapers })
+    body: JSON.stringify({ papers })
   });
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = "literatura.csv"; a.click();
   URL.revokeObjectURL(url);
+}
+
+/* ── Export BibTeX ──────────────────────────────────────── */
+async function exportBibTeX() {
+  const papers = getExportPapers();
+  const bibcodes = papers.map(p => p.bibcode).filter(Boolean);
+  if (!bibcodes.length) return;
+  const res = await fetch("/api/export_bibtex", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ bibcodes })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    showToast("Error: " + (data.error || res.statusText));
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "referencias.bib"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Batch PDF download ─────────────────────────────────── */
+async function downloadSelectedPDFs() {
+  if (selectedIndices.size === 0) return;
+  const bibcodes = [...selectedIndices].sort((a,b) => a-b)
+    .map(i => currentPapers[i]?.bibcode).filter(Boolean);
+  if (!bibcodes.length) return;
+  const btn = document.getElementById("btn-dl-pdfs");
+  if (btn) { btn.disabled = true; btn.textContent = "Descargando..."; }
+  try {
+    const res = await fetch("/api/download_batch", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ bibcodes })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showToast("Error: " + (data.error || res.statusText));
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "papers.zip"; a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = t("btn_pdfs", selectedIndices.size); }
+  }
 }
 
 /* ── API calls ──────────────────────────────────────────── */
@@ -1176,29 +1741,61 @@ async function runSimilar() {
     const data = await apiPost("/api/similar", body);
     if (data.error) { renderState(el, "error", data.error); return; }
     let extra = "";
+    if (data.bibcode && similarMode === "bibcode") {
+      const input = body.bibcode || "";
+      const resolved = data.bibcode;
+      if (input && input.toLowerCase().replace("arxiv:", "") !== resolved.toLowerCase()) {
+        extra += `<span style="font-size:.78rem;color:var(--text2)">arXiv:${escHtml(input.replace(/arxiv:/i,""))} → <code style="color:var(--accent)">${escHtml(resolved)}</code></span>`;
+      }
+    }
     if (data.keywords && data.keywords.length) {
-      extra = `<div style="margin-top:8px"><span style="font-size:.75rem;color:var(--text2)">${t("lbl_keywords")}</span>
+      extra += `<div style="margin-top:8px"><span style="font-size:.75rem;color:var(--text2)">${t("lbl_keywords")}</span>
         <div class="keywords-row">${data.keywords.map(k => `<span class="kw-chip">${escHtml(k)}</span>`).join("")}</div></div>`;
     }
-    renderPapers(el, data.papers, data.total, "");
-    if (extra) el.insertAdjacentHTML("afterbegin", extra);
+    renderPapers(el, data.papers, data.total, extra);
   } catch(e) { renderState(el, "error", e.message); }
 }
 
 async function runChain() {
   const el = document.getElementById("chain-results");
+  const levels  = parseInt(document.getElementById("chain-levels").value)   || 2;
+  const maxPer  = parseInt(document.getElementById("chain-max-per").value)  || 10;
   renderState(el, "loading");
+  chainViewMode = "list";
+  chainData = { papers: [], edges: [], seed: "" };
+
+  // Progreso estimado: ~1s por paper × maxPer papers por nivel
+  const msPerLevel = Math.max(4000, maxPer * 1100);
+  let levelShown = 1;
+  const progressInterval = setInterval(() => {
+    const loadingEl = el.querySelector(".state-loading");
+    if (loadingEl && levelShown <= levels) {
+      loadingEl.innerHTML = `<div class="spinner"></div><p style="margin-top:10px;color:var(--text2);font-size:.84rem">Nivel ${levelShown} / ${levels}…</p>`;
+      levelShown++;
+    }
+  }, msPerLevel);
+
   try {
     const data = await apiPost("/api/chain", {
       identifier: document.getElementById("chain-id").value,
-      levels: document.getElementById("chain-levels").value,
-      max_per_level: document.getElementById("chain-max-per").value,
+      levels,
+      max_per_level: maxPer,
       rows: document.getElementById("chain-rows").value,
       year: document.getElementById("chain-year").value,
     });
+    clearInterval(progressInterval);
     if (data.error) { renderState(el, "error", data.error); return; }
-    renderPapers(el, data.papers, data.total);
-  } catch(e) { renderState(el, "error", e.message); }
+    chainData = { papers: data.papers || [], edges: data.edges || [], seed: data.seed || data.bibcode || "" };
+    const graphToggle = `<button class="btn-export" id="chain-view-toggle" onclick="toggleChainView()">${t("view_graph")}</button>`;
+    renderPapers(el, data.papers, data.total, graphToggle);
+    const graphDiv = document.createElement("div");
+    graphDiv.id = "chain-graph-view";
+    graphDiv.className = "chain-graph-container";
+    el.appendChild(graphDiv);
+  } catch(e) {
+    clearInterval(progressInterval);
+    renderState(el, "error", e.message);
+  }
 }
 
 async function runDownload() {
@@ -1266,7 +1863,15 @@ async function loadAgentStatus() {
         </div>
         <div class="stat-card stat-info">
           <div class="stat-label">${t("agent_whatsapp")}</div>
-          <div class="stat-value" style="font-size:.95rem">${escHtml(d.whatsapp)}</div>
+          <div id="wa-display" style="display:flex;align-items:center;gap:6px;margin-top:2px">
+            <span class="stat-value" style="font-size:.95rem">${escHtml(d.whatsapp)}</span>
+            <button class="toggle-btn" style="padding:2px 7px;font-size:.7rem" onclick="showWaEdit()" title="${t('agent_whatsapp_edit')}">✏️</button>
+          </div>
+          <div id="wa-edit" style="display:none;margin-top:6px">
+            <input id="wa-input" type="text" class="config-textarea" placeholder="56912345678" style="width:140px;padding:4px 8px;font-size:.82rem;display:inline-block;resize:none" />
+            <button class="btn-run" style="margin-top:0;padding:5px 10px;font-size:.78rem" onclick="saveWaNumber(this)">💾</button>
+            <button class="toggle-btn" style="padding:4px 8px;font-size:.75rem" onclick="hideWaEdit()">✕</button>
+          </div>
         </div>
       </div>
       <div class="kw-section">
@@ -1278,39 +1883,162 @@ async function loadAgentStatus() {
   }
 }
 
+function showWaEdit() {
+  document.getElementById("wa-display").style.display = "none";
+  document.getElementById("wa-edit").style.display = "flex";
+  document.getElementById("wa-edit").style.alignItems = "center";
+  document.getElementById("wa-edit").style.gap = "6px";
+  document.getElementById("wa-input").focus();
+}
+function hideWaEdit() {
+  document.getElementById("wa-display").style.display = "flex";
+  document.getElementById("wa-edit").style.display = "none";
+}
+async function saveWaNumber(btn) {
+  const number = document.getElementById("wa-input").value.trim();
+  if (!number) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/config/whatsapp", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ number })
+    });
+    const d = await res.json();
+    if (d.error) { showToast("❌ " + d.error); return; }
+    showToast("✓ Número guardado");
+    hideWaEdit();
+    loadAgentStatus();
+  } catch(e) { showToast("❌ " + e.message); }
+  finally { btn.disabled = false; }
+}
+
+let dryRunPapers = [];
+
+function _arxivIdFromUrl(url) {
+  const m = url.match(/arxiv\.org\/abs\/([^\s?#/]+)/i);
+  if (!m) return null;
+  return m[1].replace(/v\d+$/, "");
+}
+
 async function runDryRun() {
   const el = document.getElementById("agent-dryrun-results");
   const btn = document.getElementById("btn-dryrun");
   btn.disabled = true;
+  dryRunPapers = [];
   el.innerHTML = `<div class="state-loading" style="padding:30px 0"><div class="spinner"></div></div>`;
   try {
     const res = await fetch("/api/arxiv/dryrun", { method: "POST" });
     const d = await res.json();
     if (d.error) { el.innerHTML = `<div class="state-error">❌ ${escHtml(d.error)}</div>`; btn.disabled = false; return; }
-
     if (!d.papers || d.papers.length === 0) {
       el.innerHTML = `<div class="state-empty"><div class="icon">🔭</div>
-        ${t("agent_no_papers")} ${d.hours_back || "24"} ${t("agent_hours_unit")}</div>`;
+        ${t("agent_no_papers")} ${d.hours_back ?? 48} ${t("agent_hours_unit")}</div>`;
       btn.disabled = false; return;
     }
-
-    let html = `<div class="results-header">
-      <span class="results-count"><strong>${d.total}</strong> paper(s)</span>
-    </div>`;
-    d.papers.forEach((p, i) => {
-      const authors = Array.isArray(p.authors) ? p.authors.slice(0,3).join(", ") + (p.authors.length > 3 ? ` +${p.authors.length-3}` : "") : "";
-      html += `<div class="agent-paper">
-        <div class="agent-paper-title">
-          <a href="${escHtml(p.url)}" target="_blank">${escHtml(p.title)}</a>
-        </div>
-        <div class="agent-paper-meta">${escHtml(authors)} · ${escHtml(p.published)}</div>
-        <div class="agent-paper-abstract" id="agabs-${i}">${escHtml(p.abstract || "")}</div>
-        <button class="toggle-abstract" onclick="toggleAgAbs(${i})">${t("expand")}</button>
-      </div>`;
-    });
-    el.innerHTML = html;
+    dryRunPapers = d.papers;
+    _renderDryRun(el, d.papers);
   } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
   btn.disabled = false;
+}
+
+function _renderDryRun(el, papers) {
+  let html = `<div class="results-header" style="margin-bottom:16px">
+    <span class="results-count"><strong>${papers.length}</strong> paper(s)</span>
+    <button class="btn-export" id="btn-resolve-all" onclick="resolveAllInAds()">${t("resolve_btn")}</button>
+  </div><div class="papers-list">`;
+  papers.forEach((p, i) => {
+    const authorList = Array.isArray(p.authors) ? p.authors : [];
+    const authorStr  = authorList.slice(0,4).map(a => escHtml(a)).join(", ")
+                       + (authorList.length > 4 ? ` <span style="color:var(--text2)">+${authorList.length-4} more</span>` : "");
+    const year    = (p.published || "").slice(0, 4);
+    const arxivId = _arxivIdFromUrl(p.url || "");
+    const pdfUrl  = arxivId ? `https://arxiv.org/pdf/${arxivId}` : "";
+    html += `<div class="agent-paper" id="agpaper-${i}">
+      <div class="paper-top">
+        <div class="agent-paper-title"><a href="${escHtml(p.url)}" target="_blank">${escHtml(p.title)}</a></div>
+        <div class="paper-badges">
+          ${year ? `<span class="badge badge-year">${year}</span>` : ""}
+          <span class="badge badge-type">arXiv</span>
+        </div>
+      </div>
+      <div class="agent-paper-meta">
+        ${authorStr}
+        ${p.published ? `<span style="color:var(--text2);font-size:.75rem">${escHtml(p.published.slice(0,10))}</span>` : ""}
+      </div>
+      <div class="agent-paper-abstract" id="agabs-${i}">${escHtml(p.abstract || "")}</div>
+      <button class="toggle-abstract" onclick="toggleAgAbs(${i})">${t("expand")}</button>
+      <div class="agent-paper-footer">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span id="agbibcode-${i}"></span>
+          ${pdfUrl ? `<a href="${escHtml(pdfUrl)}" target="_blank"><button class="btn-translate">⬇ PDF</button></a>` : ""}
+          ${arxivId ? `<button class="btn-translate" onclick="downloadArxivBibtex('${escHtml(arxivId)}', this)">${t("btn_bibtex_arxiv")}</button>` : ""}
+          <span id="agads-${i}"></span>
+        </div>
+        <a class="link-ads" href="${escHtml(p.url)}" target="_blank">arXiv →</a>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+async function resolveAllInAds() {
+  const btn = document.getElementById("btn-resolve-all");
+  if (!btn || !dryRunPapers.length) return;
+  btn.disabled = true;
+  btn.textContent = t("resolving");
+  const ids = dryRunPapers.map((p, i) => ({ i, id: _arxivIdFromUrl(p.url || "") })).filter(x => x.id);
+  try {
+    const res = await fetch("/api/arxiv/resolve", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ ids: ids.map(x => x.id) })
+    });
+    const d = await res.json();
+    ids.forEach(({ i, id }) => {
+      const adsEl = document.getElementById("agads-" + i);
+      if (!adsEl) return;
+      const info = d.results[id];
+      if (info) {
+        const bibEl = document.getElementById("agbibcode-" + i);
+        if (bibEl) bibEl.innerHTML = `<span class="badge badge-bibcode" onclick="copyBibcode('${escHtml(info.bibcode)}')" title="${t('bibcode_copy_title')}: ${escHtml(info.bibcode)}" style="cursor:pointer;user-select:none">📋 ${escHtml(info.bibcode)}</span>`;
+        adsEl.innerHTML = `<span class="badge badge-cites">📊 ${info.citations}</span>
+          <a href="${escHtml(info.url)}" target="_blank" class="link-ads" style="font-size:.75rem">ADS →</a>
+          <button class="btn-translate" onclick="downloadAdsBibtex('${escHtml(info.bibcode)}', this)">${t("btn_bibtex_ads")}</button>`;
+      } else {
+        adsEl.innerHTML = `<span class="ads-status ads-status-missing">${t("resolve_missing")}</span>`;
+      }
+    });
+  } catch(e) { btn.textContent = "❌ Error"; }
+  finally { btn.disabled = false; btn.textContent = t("resolve_btn"); }
+}
+
+async function downloadArxivBibtex(arxivId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "...";
+  try {
+    const res = await fetch(`/api/arxiv/bibtex_arxiv?id=${encodeURIComponent(arxivId)}`);
+    if (!res.ok) { const d = await res.json().catch(()=>({})); showToast(d.error || res.statusText); return; }
+    const blob = await res.blob();
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${arxivId}.bib` });
+    a.click(); URL.revokeObjectURL(a.href);
+  } catch(e) { showToast(e.message); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+async function downloadAdsBibtex(bibcode, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "...";
+  try {
+    const res = await fetch("/api/export_bibtex", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ bibcodes: [bibcode] })
+    });
+    if (!res.ok) { const d = await res.json().catch(()=>({})); showToast(d.error || res.statusText); return; }
+    const blob = await res.blob();
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "referencias.bib" });
+    a.click(); URL.revokeObjectURL(a.href);
+  } catch(e) { showToast(e.message); }
+  finally { btn.disabled = false; btn.textContent = orig; }
 }
 
 function toggleAgAbs(i) {
@@ -1339,6 +2067,161 @@ async function loadLogs() {
     el.innerHTML = `<div class="logs-box">${lines}</div>
       <div style="font-size:.72rem;color:var(--text2);margin-top:6px">${d.total} líneas totales · mostrando últimas ${d.lines.length}</div>`;
     el.querySelector(".logs-box").scrollTop = 9999;
+  } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
+}
+
+/* ── Digests ────────────────────────────────────────────── */
+async function loadDigests() {
+  const el = document.getElementById("agent-digests-area");
+  if (!el) return;
+  el.innerHTML = `<div class="state-loading" style="padding:20px 0"><div class="spinner"></div></div>`;
+  try {
+    const res = await fetch("/api/arxiv/digests");
+    const d = await res.json();
+    if (!d.files || !d.files.length) {
+      el.innerHTML = `<div class="state-empty" style="padding:20px">${t("digests_empty")}</div>`;
+      return;
+    }
+    let html = `<div style="display:flex;flex-direction:column;gap:8px">`;
+    d.files.forEach(f => {
+      const date = f.replace("digest_", "").replace(".html", "");
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;
+        background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
+        <span style="font-size:.88rem">📄 ${escHtml(date)}</span>
+        <a href="/api/arxiv/digest?file=${encodeURIComponent(f)}" target="_blank">
+          <button class="btn-export" style="font-size:.78rem">Abrir →</button>
+        </a>
+      </div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
+}
+
+/* ── Config panel ───────────────────────────────────────── */
+async function loadConfig() {
+  const el = document.getElementById("config-area");
+  if (!el) return;
+  el.innerHTML = `<div class="state-loading" style="padding:30px 0"><div class="spinner"></div></div>`;
+  try {
+    const res = await fetch("/api/config");
+    const d = await res.json();
+    if (d.error) { el.innerHTML = `<div class="state-error">❌ ${escHtml(d.error)}</div>`; return; }
+    el.innerHTML = `
+      <div class="config-section">
+        <div class="config-label" data-i18n="config_cats">${t("config_cats")}</div>
+        <textarea class="config-textarea" id="cfg-categories" rows="6">${escHtml(d.categories.join("\n"))}</textarea>
+      </div>
+      <div class="config-section">
+        <div class="config-label" data-i18n="config_kws">${t("config_kws")}</div>
+        <textarea class="config-textarea" id="cfg-keywords" rows="12">${escHtml(d.keywords.join("\n"))}</textarea>
+      </div>
+      <div class="config-inline config-section">
+        <div class="form-group">
+          <label class="config-label">${t("config_hours")}</label>
+          <input type="number" class="config-textarea" id="cfg-hours" value="${d.hours_back}" min="1" max="168" style="width:100px;resize:none">
+        </div>
+        <div class="form-group">
+          <label class="config-label">${t("config_max")}</label>
+          <input type="number" class="config-textarea" id="cfg-max" value="${d.max_results}" min="10" max="500" style="width:100px;resize:none">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn-run" style="margin-top:0" onclick="saveConfig(this)">
+          <span>💾</span><span>${t("config_save")}</span>
+        </button>
+        <button class="toggle-btn" onclick="restoreConfigDefaults()" style="padding:8px 14px">
+          ${t("config_restore")}
+        </button>
+      </div>
+      <div id="config-msg" style="margin-top:12px;font-size:.85rem"></div>`;
+  } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
+}
+
+async function saveConfig(btn) {
+  const categories = document.getElementById("cfg-categories").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  const keywords   = document.getElementById("cfg-keywords").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  const hours_back  = parseInt(document.getElementById("cfg-hours").value) || 24;
+  const max_results = parseInt(document.getElementById("cfg-max").value)   || 50;
+  const catPattern  = /^[a-z][a-z-]*(\.[A-Z]{2,4})?$/;
+  const invalidCats = categories.filter(c => !catPattern.test(c));
+  if (invalidCats.length) {
+    const msg = document.getElementById("config-msg");
+    msg.innerHTML = `<span style="color:var(--red)">❌ Categoría(s) inválidas: <strong>${escHtml(invalidCats.join(", "))}</strong><br><small>Formato correcto: astro-ph.HE, cs.LG, quant-ph</small></span>`;
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/config/save", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ categories, keywords, hours_back, max_results })
+    });
+    const d = await res.json();
+    const msg = document.getElementById("config-msg");
+    if (d.error) { msg.innerHTML = `<span style="color:var(--red)">❌ ${escHtml(d.error)}</span>`; }
+    else { msg.innerHTML = `<span style="color:var(--green)">${t("config_saved")}</span>`; setTimeout(() => msg.innerHTML = "", 3000); }
+  } catch(e) {
+    document.getElementById("config-msg").innerHTML = `<span style="color:var(--red)">❌ ${escHtml(e.message)}</span>`;
+  } finally { btn.disabled = false; }
+}
+
+function restoreConfigDefaults() {
+  const cats = document.getElementById("cfg-categories");
+  const kws  = document.getElementById("cfg-keywords");
+  const hrs  = document.getElementById("cfg-hours");
+  const mx   = document.getElementById("cfg-max");
+  if (!cats) return;
+  cats.value = ["astro-ph.HE","astro-ph.SR","astro-ph.IM","cs.LG"].join("\n");
+  kws.value  = ["supernova","supernovae","core-collapse","Type Ia","Type II",
+    "SN II","SN IIP","SN IIL","SN","SN Ia","SLSN",
+    "superluminous supernova","transient","fast transient","kilonova","GRB",
+    "gamma-ray burst","FBOT","machine learning supernova","deep learning supernova",
+    "neural network transient","classification transient","multimodal astronomy",
+    "multimodal astrophysics","foundation model astronomy"].join("\n");
+  hrs.value = "48";
+  mx.value  = "50";
+  const msg = document.getElementById("config-msg");
+  msg.innerHTML = `<span style="color:var(--yellow)">Defaults restaurados — guarda para aplicar.</span>`;
+  setTimeout(() => msg.innerHTML = "", 4000);
+}
+
+/* ── Compare panel ──────────────────────────────────────── */
+function _compareCards(papers) {
+  if (!papers.length) return `<p style="color:var(--text2);padding:6px 0;font-size:.85rem">${t("compare_none")}</p>`;
+  return papers.map(p => {
+    const abstract = (p.abstract || t("no_abstract")).slice(0, 400) + ((p.abstract || "").length > 400 ? "…" : "");
+    return `<div class="agent-paper">
+      <div class="agent-paper-title"><a href="${escHtml(p.url)}" target="_blank">${escHtml(p.title)}</a></div>
+      <div class="agent-paper-meta">${escHtml(p.authors)} · ${escHtml(p.year || "")}
+        <span class="badge badge-bibcode" onclick="copyBibcode('${escHtml(p.bibcode)}')" style="cursor:pointer;user-select:none;margin-left:6px" title="${t('bibcode_copy_title')}: ${escHtml(p.bibcode)}">📋 ${escHtml(p.bibcode)}</span>
+        ${p.citation_count != null ? `<span class="badge badge-cites" style="margin-left:4px">📊 ${p.citation_count}</span>` : ""}
+      </div>
+      <div class="agent-paper-abstract">${escHtml(abstract)}</div>
+    </div>`;
+  }).join("");
+}
+
+async function runCompare() {
+  const id_a = document.getElementById("compare-a").value.trim();
+  const id_b = document.getElementById("compare-b").value.trim();
+  const el   = document.getElementById("compare-results");
+  if (!id_a || !id_b) { showToast("Ingresa los dos identifiers"); return; }
+  el.innerHTML = `<div class="state-loading" style="padding:40px 0"><div class="spinner"></div><div style="margin-top:10px;color:var(--text2)">${t("loading")}</div></div>`;
+  try {
+    const res = await fetch("/api/compare", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ id_a, id_b })
+    });
+    const d = await res.json();
+    if (d.error) { el.innerHTML = `<div class="state-error">❌ ${escHtml(d.error)}</div>`; return; }
+    el.innerHTML = `
+      <div style="margin-top:16px;margin-bottom:8px;font-size:.8rem;color:var(--text2)">
+        ${escHtml(d.bibcode_a)} ↔ ${escHtml(d.bibcode_b)} &nbsp;|&nbsp; ${t("compare_summary")(d.total_refs_a, d.total_refs_b, d.total_cits_a, d.total_cits_b)}
+      </div>
+      <div class="section-divider">${t("compare_common_refs")(d.common_refs.length)}</div>
+      ${_compareCards(d.common_refs)}
+      <div class="section-divider" style="margin-top:20px">${t("compare_common_cits")(d.common_cits.length)}</div>
+      ${_compareCards(d.common_cits)}`;
   } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
 }
 
@@ -1490,10 +2373,10 @@ async function saveMatrix() {
       body: JSON.stringify({ file: matrixFile, rows: matrixRows })
     });
     const data = await res.json();
-    if (data.error) { alert("Error: " + data.error); return; }
+    if (data.error) { showToast("Error: " + data.error); return; }
     matrixDirty = false;
     document.getElementById("matrix-save-bar").classList.remove("visible");
-  } catch(e) { alert("Error: " + e.message); }
+  } catch(e) { showToast("Error: " + e.message); }
 }
 
 function discardMatrix() {
@@ -1543,6 +2426,51 @@ async function shutdownServer() {
       </div>
     </div>`;
 }
+
+/* ── Copy bibcode ───────────────────────────────────────── */
+function copyBibcode(code) {
+  navigator.clipboard.writeText(code).then(() => showToast((currentLang === "es" ? "Bibcode copiado: " : "Bibcode copied: ") + code, "ok"));
+}
+
+/* ── Send to WhatsApp ───────────────────────────────────── */
+async function sendToWhatsApp() {
+  const btn = document.getElementById("btn-send-wa");
+  btn.disabled = true;
+  const orig = btn.querySelector("[data-i18n='agent_btn_send']");
+  if (orig) orig.textContent = "Enviando…";
+  try {
+    const res = await fetch("/api/arxiv/send", { method: "POST" });
+    const d = await res.json();
+    if (d.error) { showToast("❌ " + d.error); }
+    else if (d.ok) { showToast("✅ " + d.message, "ok"); }
+    else { showToast("⚠️ " + d.message); }
+  } catch(e) { showToast("❌ " + e.message); }
+  finally {
+    btn.disabled = false;
+    if (orig) orig.textContent = t("agent_btn_send");
+  }
+}
+
+/* ── Enter key bindings ─────────────────────────────────── */
+const _enterMap = {
+  "search-author":   () => runSearch(),
+  "topics-keywords": () => runTopics(),
+  "refs-id":         () => runRefs(),
+  "cits-id":         () => runCits(),
+  "sim-bibcode":     () => runSimilar(),
+  "chain-id":        () => runChain(),
+  "dl-id":           () => runDownload(),
+};
+Object.entries(_enterMap).forEach(([id, fn]) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); fn(); } });
+});
+
+/* ── Scroll-to-top visibility ───────────────────────────── */
+document.querySelector(".main").addEventListener("scroll", () => {
+  const btn = document.getElementById("btn-scroll-top");
+  if (btn) btn.classList.toggle("visible", document.querySelector(".main").scrollTop > 300);
+}, { passive: true });
 
 /* ── Init ───────────────────────────────────────────────── */
 loadPrefs();

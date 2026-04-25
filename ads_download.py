@@ -19,13 +19,14 @@ import json
 import argparse
 import urllib.request
 import urllib.parse
-import urllib.error
 import csv
 import os
 import sys
 import re
+import unicodedata
 import time
 from dotenv import load_dotenv
+from utils import is_arxiv_id
 
 load_dotenv()
 
@@ -43,10 +44,6 @@ SOURCE_PRIORITY = [
 ]
 
 
-def is_arxiv_id(identifier: str) -> bool:
-    clean = identifier.replace("arXiv:", "").replace("arxiv:", "")
-    parts = clean.split(".")
-    return len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()
 
 
 def arxiv_to_bibcode(arxiv_id: str) -> str | None:
@@ -81,6 +78,41 @@ def get_paper_metadata(bibcode: str) -> dict:
         data = json.load(r)
     docs = data.get("response", {}).get("docs", [])
     return docs[0] if docs else {}
+
+
+def get_papers_metadata_batch(bibcodes: list) -> dict:
+    """Fetch title, year, author for a list of bibcodes in a single ADS call.
+    Returns a dict keyed by bibcode."""
+    if not bibcodes:
+        return {}
+    q = " OR ".join(f"bibcode:{bc}" for bc in bibcodes)
+    params = urllib.parse.urlencode({
+        "q":    q,
+        "fl":   "bibcode,title,year,author",
+        "rows": len(bibcodes),
+    })
+    req = urllib.request.Request(
+        f"{ADS_API}?{params}",
+        headers={"Authorization": f"Bearer {ADS_TOKEN}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.load(r)
+        docs = data.get("response", {}).get("docs", [])
+        return {d["bibcode"]: d for d in docs if "bibcode" in d}
+    except Exception:
+        return {}
+
+
+def fetch_pdf_bytes(pdf_url: str) -> bytes | None:
+    """Fetch raw PDF bytes from a URL. Returns None if not a PDF or on network error."""
+    req = urllib.request.Request(pdf_url, headers={"User-Agent": "Mozilla/5.0 (arxiv-ads-toolkit)"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = r.read()
+        return data if data[:4] == b"%PDF" else None
+    except Exception:
+        return None
 
 
 def get_pdf_url(bibcode: str) -> tuple[str | None, str]:
@@ -120,6 +152,7 @@ def make_filename(bibcode: str, metadata: dict) -> str:
     # Primer apellido del autor principal (antes de la coma)
     if authors:
         last_name = authors[0].split(",")[0].strip()
+        last_name = unicodedata.normalize("NFC", last_name)
         last_name = re.sub(r"[^\w]", "", last_name)   # solo alfanumérico
     else:
         last_name = "Unknown"
@@ -163,34 +196,18 @@ def download_pdf(bibcode: str, output_dir: str) -> bool:
         print(f"  ✗ Sin PDF de acceso abierto: {bibcode}")
         return False
 
-    # Descargar
     title = metadata.get("title", [""])[0][:55] if metadata.get("title") else bibcode
     print(f"  ↓ [{source}] {title}")
 
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (arxiv-ads-toolkit)"}
-        req = urllib.request.Request(pdf_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=30) as r:
-            content = r.read()
-
-        # Verificar que sea realmente un PDF
-        if not content.startswith(b"%PDF"):
-            print(f"  ✗ Respuesta no es un PDF (posible paywall): {bibcode}")
-            return False
-
-        with open(filepath, "wb") as f:
-            f.write(content)
-
-        size_kb = len(content) // 1024
-        print(f"  ✓ Guardado: {filename} ({size_kb} KB)")
-        return True
-
-    except urllib.error.HTTPError as e:
-        print(f"  ✗ HTTP {e.code}: {bibcode}")
+    content = fetch_pdf_bytes(pdf_url)
+    if content is None:
+        print(f"  ✗ Sin PDF válido (paywall o error de red): {bibcode}")
         return False
-    except Exception as e:
-        print(f"  ✗ Error: {e}")
-        return False
+
+    with open(filepath, "wb") as f:
+        f.write(content)
+    print(f"  ✓ Guardado: {filename} ({len(content) // 1024} KB)")
+    return True
 
 
 def download_from_csv(csv_path: str, output_dir: str):

@@ -21,6 +21,7 @@ import os
 import sys
 from dotenv import load_dotenv
 from exporter import papers_to_csv
+from utils import is_arxiv_id, pubdate_filter
 
 load_dotenv()
 
@@ -28,18 +29,12 @@ ADS_TOKEN = os.getenv("ADS_TOKEN")
 ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
 
 
-def is_arxiv_id(identifier: str) -> bool:
-    clean  = identifier.replace("arXiv:", "").replace("arxiv:", "")
-    parts  = clean.split(".")
-    return len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()
-
-
-def arxiv_to_bibcode(arxiv_id: str) -> tuple[str | None, str | None]:
-    """Convierte un arXiv ID a bibcode. Devuelve (bibcode, título)."""
+def arxiv_to_bibcode(arxiv_id: str) -> str | None:
+    """Convierte un arXiv ID a bibcode."""
     clean  = arxiv_id.replace("arXiv:", "").replace("arxiv:", "")
     params = urllib.parse.urlencode({
         "q":    f'identifier:"arXiv:{clean}"',
-        "fl":   "bibcode,title",
+        "fl":   "bibcode",
         "rows": 1,
     })
     req = urllib.request.Request(
@@ -50,12 +45,7 @@ def arxiv_to_bibcode(arxiv_id: str) -> tuple[str | None, str | None]:
         data = json.load(r)
 
     docs = data.get("response", {}).get("docs", [])
-    if not docs:
-        return None, None
-
-    bibcode = docs[0]["bibcode"]
-    title   = docs[0].get("title", ["?"])[0]
-    return bibcode, title
+    return docs[0]["bibcode"] if docs else None
 
 
 def fetch_citations(bibcode: str, year: str = None, rows: int = 200) -> tuple[list, int]:
@@ -68,15 +58,11 @@ def fetch_citations(bibcode: str, year: str = None, rows: int = 200) -> tuple[li
     query = f"citations(bibcode:{bibcode})"
 
     if year:
-        if "-" in year and len(year) > 4:
-            start, end = year.split("-", 1)
-            query += f" pubdate:[{start}-01 TO {end}-12]"
-        else:
-            query += f" pubdate:[{year}-01 TO {year}-12]"
+        query += f" {pubdate_filter(year)}"
 
     params = urllib.parse.urlencode({
         "q":    query,
-        "fl":   "title,bibcode,year,author,doctype,abstract",
+        "fl":   "title,bibcode,year,author,doctype,abstract,citation_count,doi,identifier",
         "rows": rows,
         "sort": "date desc",
     })
@@ -92,13 +78,10 @@ def fetch_citations(bibcode: str, year: str = None, rows: int = 200) -> tuple[li
     return response.get("docs", []), response.get("numFound", 0)
 
 
-def display_results(papers: list, total: int, bibcode: str, paper_title: str, year: str = None):
+def display_results(papers: list, total: int, bibcode: str, year: str = None):
     filtro = f" | filtro: {year}" if year else ""
     print(f"\n{'='*60}")
     print(f"  Citaciones de: {bibcode}")
-    if paper_title:
-        wrapped = textwrap.shorten(paper_title, width=55)
-        print(f"  \"{wrapped}\"")
     print(f"  {total} citación(es) total{filtro} | mostrando {len(papers)}")
     print(f"{'='*60}")
 
@@ -151,23 +134,19 @@ def main():
 
     args = parser.parse_args()
 
-    paper_title = None
-
     if is_arxiv_id(args.identifier):
         print(f"Buscando bibcode para arXiv:{args.identifier}...")
-        bibcode, paper_title = arxiv_to_bibcode(args.identifier)
+        bibcode = arxiv_to_bibcode(args.identifier)
         if not bibcode:
             print(f"ERROR: No se encontró arXiv:{args.identifier} en NASA ADS.")
             sys.exit(1)
         print(f"[→] Bibcode: {bibcode}")
-        if paper_title:
-            print(f"    {paper_title[:70]}")
     else:
         bibcode = args.identifier
 
     print(f"\nBuscando papers que citan {bibcode}...")
     papers, total = fetch_citations(bibcode, args.year, args.rows)
-    display_results(papers, total, bibcode, paper_title, args.year)
+    display_results(papers, total, bibcode, args.year)
 
     if args.export:
         papers_to_csv(papers, args.export)

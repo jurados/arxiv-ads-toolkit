@@ -27,26 +27,13 @@ import os
 import sys
 from dotenv import load_dotenv
 from exporter import papers_to_csv
+from utils import pubdate_filter
 
 load_dotenv()
 
 ADS_TOKEN = os.getenv("ADS_TOKEN")
 ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
 DOCTYPES  = ["article", "thesis", "book"]
-
-
-def pubdate_filter(year: str) -> str:
-    """
-    Convierte un año o rango de años al filtro pubdate de ADS.
-
-    Ejemplos:
-      "2023"       → pubdate:[2023-01 TO 2023-12]
-      "2020-2023"  → pubdate:[2020-01 TO 2023-12]
-    """
-    if "-" in year and len(year) > 4:
-        start, end = year.split("-", 1)
-        return f"pubdate:[{start}-01 TO {end}-12]"
-    return f"pubdate:[{year}-01 TO {year}-12]"
 
 
 def build_query(keywords: str, field: str, year: str = None) -> str:
@@ -85,7 +72,7 @@ def search_topics(keywords: str, field: str = "all", year: str = None, rows: int
     query  = build_query(keywords, field, year)
     params = urllib.parse.urlencode({
         "q":    query,
-        "fl":   "title,bibcode,year,author,doctype,abstract",
+        "fl":   "title,bibcode,year,author,doctype,abstract,citation_count,doi,identifier",
         "rows": rows,
         "sort": "date desc",
     })

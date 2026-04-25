@@ -17,6 +17,7 @@ import os
 from datetime import datetime, timezone
 from fetcher import fetch_papers
 from notifier import notify, format_paper_message
+from digester import save_digest_html, save_digest_md
 
 LOCK_FILE = os.path.join(os.path.dirname(__file__), ".last_run")
 
@@ -56,9 +57,6 @@ def main():
 
     if not papers:
         print("Sin papers nuevos hoy.")
-        if not dry_run:
-            notify([], date_str)
-            mark_as_ran()
         return
 
     print(f"\n--- {len(papers)} PAPERS ENCONTRADOS ---")
@@ -66,14 +64,21 @@ def main():
         print(f"\n[{i}] {p['title']}")
         print(f"     {p['published']}")
 
+    digest_path = save_digest_html(papers, date_str)
+    save_digest_md(papers, date_str)
+    print(f"\n[digest] Guardado en: {digest_path}")
+
     if dry_run:
         print("\n[dry-run] Mostrando primer paper traducido:\n")
         print(format_paper_message(papers[0], 1, len(papers)))
         print("\n[dry-run] No se envió nada por WhatsApp.")
     else:
-        notify(papers, date_str)
-        mark_as_ran()
-        print("\nListo. Resumen enviado por WhatsApp.")
+        sent = notify(papers, date_str)
+        if sent:
+            mark_as_ran()
+            print("\nListo. Resumen enviado por WhatsApp.")
+        else:
+            print("\n[ERROR] No se pudo enviar por WhatsApp. Se reintentará en la próxima ejecución.")
 
 
 if __name__ == "__main__":

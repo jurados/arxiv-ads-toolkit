@@ -16,12 +16,17 @@ Una aplicación Flask completa para gestionar toda tu investigación desde el na
 - **Gestión de Descargas**: Descarga directa de PDFs de acceso abierto.
 - **Paper-to-Code**: Detección automática de repositorios de código (GitHub, GitLab, PapersWithCode, PyPI) analizando abstracts, comentarios y agradecimientos.
 - **Exportación flexible**: Generación de matrices en **CSV** y archivos **BibTeX** listos para LaTeX.
-- **Configuración en caliente**: Edita palabras clave y categorías directamente desde la interfaz.
+- **Configuración en caliente**: Edita palabras clave y categorías directamente desde la interfaz, con botón "Restaurar valores por defecto".
+- **Panel de Comparación (⚖️)**: Compara dos papers en paralelo — referencias comunes, citaciones cruzadas y diferencias de impacto.
+- **Badges DOI y arXiv**: Cada tarjeta muestra el DOI (enlace a doi.org) y el ID de arXiv (enlace a arxiv.org) detectados automáticamente.
+- **Botón scroll-to-top**: Aparece al bajar en la página y vuelve al inicio con un clic.
+- **Número de WhatsApp editable**: Cambia el destinatario del agente diario directamente desde la interfaz sin tocar el código.
 
 ### 🤖 Agente Diario (arXiv → WhatsApp)
-- Monitoreo automático de nuevas publicaciones en categorías seleccionadas.
-- Filtrado por palabras clave inteligentes (Supernovas, Transientes, ML, Multimodalidad).
-- Envío de notificaciones diarias vía **WhatsApp** con abstracts traducidos.
+- Monitoreo automático de nuevos papers en arXiv con envío por WhatsApp.
+- Dry-run desde la interfaz web: previsualiza los papers del día con badges de año, tipo y citaciones.
+- Ventana de búsqueda configurable (`hours_back`) desde el panel web.
+- Generación de digest diario en HTML guardado en `digests/`.
 
 ### 🛠 Herramientas NASA ADS (CLI)
 - `ads-search`: Búsquedas precisas por autor (incluyendo filtro de primer autor).
@@ -29,7 +34,7 @@ Una aplicación Flask completa para gestionar toda tu investigación desde el na
 - `ads-references` / `ads-citations`: Extracción de redes de citas hacia atrás y hacia adelante.
 - `ads-similar`: Encuentra trabajos relacionados mediante similitud semántica de ADS o análisis de texto.
 - `ads-chain`: Rastreo de referencias en múltiples niveles para mapear el "árbol genealógico" de una idea.
-- `ads-download`: Automatización de descargas de PDFs (priorizando arXiv sobre paywalls).
+- `ads-download`: Automatización de descargas de PDFs (priorizando arXiv sobre paywalls), con descarga batch y metadata en una sola llamada a la API.
 
 ---
 
@@ -65,9 +70,16 @@ ADS_TOKEN=tu_token_aqui
 ```
 
 ### Construir una Matriz de Literatura (CLI)
-Todas las herramientas aceptan el flag `--export` para acumular resultados en un CSV sin duplicados:
+Todas las herramientas aceptan el flag `--export` para acumular resultados en un CSV sin duplicados.
+Los filtros de año soportan rangos abiertos:
 ```bash
-# Ejemplo: Unir búsquedas de autor y tema en una sola matriz
+# Ejemplos de filtros de año
+ads-search "Forster, Francisco" --year 2022         # año exacto
+ads-topics "supernova" --year 2020-2023             # rango cerrado
+ads-citations "bibcode" --year 2022-                # desde 2022 en adelante
+ads-references "bibcode" --year -2020               # hasta 2020
+
+# Unir búsquedas en una sola matriz
 ads-search "Forster, Francisco" --year 2022-2026 --export mi_matriz.csv
 ads-topics "supernova classification" --rows 20 --export mi_matriz.csv
 ```
