@@ -957,6 +957,9 @@ const STRINGS = {
     sort_label: "Año:",
     sort_desc: "↓ reciente",
     sort_asc: "↑ antiguo",
+    sort_cites_label: "Citas:",
+    sort_cites_desc: "↓ más citado",
+    sort_cites_asc: "↑ menos citado",
     view_list: "📋 Lista",
     view_graph: "🌐 Grafo",
     chain_graph_hint: "Clic en un nodo para abrir en ADS · Scroll para zoom · Arrastrar para mover",
@@ -1109,6 +1112,9 @@ const STRINGS = {
     sort_label: "Year:",
     sort_desc: "↓ newest",
     sort_asc: "↑ oldest",
+    sort_cites_label: "Cites:",
+    sort_cites_desc: "↓ most cited",
+    sort_cites_asc: "↑ least cited",
     view_list: "📋 List",
     view_graph: "🌐 Graph",
     chain_graph_hint: "Click a node to open in ADS · Scroll to zoom · Drag to pan",
@@ -1255,15 +1261,20 @@ function _renderPage() {
   const start = currentPage * PAGE_SIZE;
   const end = Math.min(start + PAGE_SIZE, currentPapers.length);
 
-  const sortDescClass = currentSort === "desc" ? " active" : "";
-  const sortAscClass  = currentSort === "asc"  ? " active" : "";
+  const sortYearDescClass  = currentSort === "year-desc"  ? " active" : "";
+  const sortYearAscClass   = currentSort === "year-asc"   ? " active" : "";
+  const sortCitesDescClass = currentSort === "cites-desc" ? " active" : "";
+  const sortCitesAscClass  = currentSort === "cites-asc"  ? " active" : "";
   let html = `<div class="results-header">
     <span class="results-count">${t("results_count", currentPapers.length, currentResultsTotal)}</span>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       ${currentExtraHtml}
       <span style="font-size:.75rem;color:var(--text2)">${t("sort_label")}</span>
-      <button class="btn-sort${sortDescClass}" onclick="sortByYear('desc')">${t("sort_desc")}</button>
-      <button class="btn-sort${sortAscClass}"  onclick="sortByYear('asc')">${t("sort_asc")}</button>
+      <button class="btn-sort${sortYearDescClass}"  onclick="sortByYear('desc')">${t("sort_desc")}</button>
+      <button class="btn-sort${sortYearAscClass}"   onclick="sortByYear('asc')">${t("sort_asc")}</button>
+      <span style="font-size:.75rem;color:var(--text2);margin-left:4px">${t("sort_cites_label")}</span>
+      <button class="btn-sort${sortCitesDescClass}" onclick="sortByCites('desc')">${t("sort_cites_desc")}</button>
+      <button class="btn-sort${sortCitesAscClass}"  onclick="sortByCites('asc')">${t("sort_cites_asc")}</button>
       <span id="sel-count" style="font-size:.78rem;color:var(--text2)">${selectedIndices.size > 0 ? t("sel_count", selectedIndices.size) : ""}</span>
       <button class="btn-export" id="btn-sel-all" onclick="toggleSelectAll()">${selectedIndices.size === currentPapers.length && currentPapers.length > 0 ? t("deselect_all") : t("select_all")}</button>
       <button class="btn-export" onclick="exportBibTeX()">${t("btn_bibtex")}</button>
@@ -1369,7 +1380,8 @@ function getExportPapers() {
 }
 
 function sortByYear(dir) {
-  if (currentSort === dir) {
+  const key = "year-" + dir;
+  if (currentSort === key) {
     currentPapers = [...originalPapers];
     currentSort = null;
   } else {
@@ -1378,7 +1390,25 @@ function sortByYear(dir) {
       const yb = parseInt(b.year) || 0;
       return dir === "asc" ? ya - yb : yb - ya;
     });
-    currentSort = dir;
+    currentSort = key;
+  }
+  selectedIndices = new Set();
+  currentPage = 0;
+  _renderPage();
+}
+
+function sortByCites(dir) {
+  const key = "cites-" + dir;
+  if (currentSort === key) {
+    currentPapers = [...originalPapers];
+    currentSort = null;
+  } else {
+    currentPapers = [...originalPapers].sort((a, b) => {
+      const ca = parseInt(a.citation_count) || 0;
+      const cb = parseInt(b.citation_count) || 0;
+      return dir === "asc" ? ca - cb : cb - ca;
+    });
+    currentSort = key;
   }
   selectedIndices = new Set();
   currentPage = 0;
