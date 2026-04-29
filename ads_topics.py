@@ -24,16 +24,13 @@ import urllib.request
 import urllib.parse
 import textwrap
 import os
-import sys
 from dotenv import load_dotenv
 from exporter import papers_to_csv
-from utils import pubdate_filter
+from utils import pubdate_filter, is_arxiv_id, ADS_TOKEN, ADS_API, STOP_WORDS
 
 load_dotenv()
 
-ADS_TOKEN = os.getenv("ADS_TOKEN")
-ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
-DOCTYPES  = ["article", "thesis", "book"]
+DOCTYPES = ["article", "thesis", "book"]
 
 
 def build_query(keywords: str, field: str, year: str = None) -> str:
@@ -41,26 +38,50 @@ def build_query(keywords: str, field: str, year: str = None) -> str:
     Construye la query para ADS según el campo de búsqueda.
 
     ADS soporta búsqueda en:
-      title:"frase"    → solo en título
-      abs:"frase"      → solo en abstract
+      title:"frase"    → solo en título (frase exacta)
+      abs:"frase"      → solo en abstract (frase exacta)
       title + abs      → en ambos (lo más completo)
+      title-words      → título por términos individuales (para títulos completos)
+      identifier       → lookup directo por arXiv ID, bibcode ADS o DOI
 
     Las frases entre comillas se buscan de forma exacta.
     Sin comillas, ADS busca los términos de forma individual.
     """
-    # Normalizamos: si la frase tiene más de una palabra, la ponemos entre comillas
-    # para que ADS la trate como frase exacta
     phrase = f'"{keywords}"' if " " in keywords else keywords
 
     if field == "title":
         kw_query = f"title:{phrase}"
     elif field == "abstract":
         kw_query = f"abs:{phrase}"
+    elif field == "title-words":
+        # Elimina stopwords y busca cada término significativo en el título.
+        # Evita la búsqueda de frase exacta, que falla con títulos largos
+        # porque Solr trata stopwords de forma especial en modo posicional.
+        terms = [w for w in keywords.split() if w.lower() not in STOP_WORDS]
+        kw_query = " ".join(f"title:{t}" for t in terms)
+    elif field == "identifier":
+        clean = keywords.strip()
+        # Normalizar prefijo arXiv explícito
+        if clean.lower().startswith("arxiv:"):
+            clean = clean[6:]
+        if is_arxiv_id(clean):
+            kw_query = f'identifier:"arXiv:{clean}"'
+        elif clean.startswith("10."):
+            # DOI — cubre MNRAS (10.1093/mnras/…), ApJ, A&A, etc.
+            kw_query = f'doi:"{clean}"'
+        else:
+            # ADS bibcode (ej: 2016ApJ...832...86H)
+            kw_query = f'bibcode:"{clean}"'
     else:  # all: buscamos en título Y abstract
         kw_query = f"(title:{phrase} OR abs:{phrase})"
 
-    doctype_filter = " OR ".join(f"doctype:{d}" for d in DOCTYPES)
-    query = f"{kw_query} ({doctype_filter})"
+    # Para lookup directo por ID no se añade filtro de doctype — puede
+    # excluir preprints sin doctype asignado en ADS.
+    if field == "identifier":
+        query = kw_query
+    else:
+        doctype_filter = " OR ".join(f"doctype:{d}" for d in DOCTYPES)
+        query = f"{kw_query} ({doctype_filter})"
 
     if year:
         query += f" {pubdate_filter(year)}"
@@ -89,7 +110,7 @@ def search_topics(keywords: str, field: str = "all", year: str = None, rows: int
 
 
 def display_results(papers: list, keywords: str, field: str, year: str = None):
-    campo  = {"title": "título", "abstract": "abstract", "all": "título y abstract"}[field]
+    campo  = {"title": "título", "abstract": "abstract", "all": "título y abstract", "title-words": "título (por términos)", "identifier": "identificador"}[field]
     filtro = f'"{keywords}"' + (f" ({year})" if year else "")
 
     print(f"\n{'='*60}")
@@ -142,14 +163,14 @@ def main():
     )
     parser.add_argument("keywords", help='Frase o palabras a buscar (ej: "supernova machine learning")')
     parser.add_argument("--year",  help="Año o rango: 2023 o 2020-2023 (opcional)", default=None)
-    parser.add_argument("--field", help="Dónde buscar: title, abstract, all (default: all)",
-                        choices=["title", "abstract", "all"], default="all")
+    parser.add_argument("--field", help="Dónde buscar: title, abstract, all, title-words, identifier (default: all)",
+                        choices=["title", "abstract", "all", "title-words", "identifier"], default="all")
     parser.add_argument("--rows",   help="Número máximo de resultados (default: 20)", type=int, default=20)
     parser.add_argument("--export", help="Exportar resultados a CSV (ej: --export matriz.csv)", default=None)
 
     args = parser.parse_args()
 
-    campo = {"title": "título", "abstract": "abstract", "all": "título y abstract"}[args.field]
+    campo = {"title": "título", "abstract": "abstract", "all": "título y abstract", "title-words": "título (por términos)", "identifier": "identificador"}[args.field]
     print(f'\nBuscando "{args.keywords}" en {campo}' + (f" ({args.year})" if args.year else "") + "...")
 
     papers = search_topics(args.keywords, args.field, args.year, args.rows)

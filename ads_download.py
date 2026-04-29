@@ -26,13 +26,11 @@ import re
 import unicodedata
 import time
 from dotenv import load_dotenv
-from utils import is_arxiv_id
+from utils import is_arxiv_id, arxiv_to_bibcode, ADS_TOKEN, ADS_API
 
 load_dotenv()
 
-ADS_TOKEN  = os.getenv("ADS_TOKEN")
-ADS_API    = "https://api.adsabs.harvard.edu/v1/search/query"
-ADS_LINKS  = "https://api.adsabs.harvard.edu/v1/resolver"
+ADS_LINKS = "https://api.adsabs.harvard.edu/v1/resolver"
 DEFAULT_DIR = os.path.expanduser("~/Downloads")
 
 # Orden de preferencia de fuentes (de más a menos confiable para acceso abierto)
@@ -43,24 +41,6 @@ SOURCE_PRIORITY = [
     "ESOURCE|PUB_PDF",      # Publisher PDF — puede requerir suscripción
 ]
 
-
-
-
-def arxiv_to_bibcode(arxiv_id: str) -> str | None:
-    clean  = arxiv_id.replace("arXiv:", "").replace("arxiv:", "")
-    params = urllib.parse.urlencode({
-        "q":    f'identifier:"arXiv:{clean}"',
-        "fl":   "bibcode",
-        "rows": 1,
-    })
-    req = urllib.request.Request(
-        f"{ADS_API}?{params}",
-        headers={"Authorization": f"Bearer {ADS_TOKEN}"},
-    )
-    with urllib.request.urlopen(req, timeout=15) as r:
-        data = json.load(r)
-    docs = data.get("response", {}).get("docs", [])
-    return docs[0]["bibcode"] if docs else None
 
 
 def get_paper_metadata(bibcode: str) -> dict:

@@ -1,9 +1,11 @@
+import time
 import requests
-import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import WHATSAPP_NUMBER
 
-WHATSAPP_API = "http://localhost:8080/api"
+WHATSAPP_API  = "http://localhost:8080/api"
+_MAX_RETRIES  = 3
+_RETRY_DELAY  = 2   # segundos entre intentos
 
 
 def translate_to_spanish(text: str) -> str:
@@ -15,16 +17,22 @@ def translate_to_spanish(text: str) -> str:
 
 
 def send_whatsapp(message: str) -> bool:
-    try:
-        response = requests.post(
-            f"{WHATSAPP_API}/send",
-            json={"recipient": WHATSAPP_NUMBER, "message": message},
-            timeout=10,
-        )
-        return response.json().get("success", False)
-    except Exception as e:
-        print(f"[notifier] Error enviando WhatsApp: {e}")
-        return False
+    """Envía un mensaje por WhatsApp con hasta _MAX_RETRIES intentos."""
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            response = requests.post(
+                f"{WHATSAPP_API}/send",
+                json={"recipient": WHATSAPP_NUMBER, "message": message},
+                timeout=10,
+            )
+            if response.json().get("success", False):
+                return True
+        except Exception as e:
+            print(f"[notifier] Intento {attempt}/{_MAX_RETRIES} fallido: {e}")
+        if attempt < _MAX_RETRIES:
+            time.sleep(_RETRY_DELAY)
+    print(f"[notifier] Mensaje descartado tras {_MAX_RETRIES} intentos.")
+    return False
 
 
 def _translate_paper(paper: dict, index: int, total: int) -> tuple[int, str]:

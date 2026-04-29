@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>arXiv Agent · NASA ADS Toolkit</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 28 28' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='13' stroke='%2358a6ff' stroke-width='1.5'/%3E%3Ccircle cx='14' cy='14' r='5' fill='%2358a6ff' opacity='.9'/%3E%3Cellipse cx='14' cy='14' rx='13' ry='5' stroke='%2358a6ff' stroke-width='1.2' opacity='.5'/%3E%3C/svg%3E">
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
 /* ── Variables ──────────────────────────────────────────── */
@@ -632,6 +633,8 @@ table.matrix td.cell-abstract {
             <option value="all" data-i18n="opt_all">Título y abstract</option>
             <option value="title" data-i18n="opt_title">Solo título</option>
             <option value="abstract" data-i18n="opt_abstract">Solo abstract</option>
+            <option value="title-words" data-i18n="opt_title_words">Título completo</option>
+            <option value="identifier" data-i18n="opt_identifier">ID (arXiv / bibcode / DOI)</option>
           </select>
         </div>
         <div class="form-group">
@@ -936,6 +939,8 @@ const STRINGS = {
     opt_all: "Título y abstract",
     opt_title: "Solo título",
     opt_abstract: "Solo abstract",
+    opt_title_words: "Título completo (por términos)",
+    opt_identifier: "ID — arXiv / bibcode / DOI",
 
     mode_bibcode: "Bibcode / arXiv",
     mode_text: "Texto libre",
@@ -946,6 +951,7 @@ const STRINGS = {
     results_count: (n, total) => `<strong>${n}</strong> resultado(s) mostrados${total ? ` de ${total} totales` : ""}`,
     btn_export: "⬇ Exportar CSV",
     btn_bibtex: "⬇ BibTeX",
+    btn_bibtex_copy: "📋 Copiar BibTeX",
     btn_pdf: "⬇ PDF",
     btn_pdfs: n => `⬇ PDFs (${n})`,
     select_all: "Seleccionar todo",
@@ -988,8 +994,10 @@ const STRINGS = {
     resolving: "Resolviendo...",
     resolve_found: "En ADS",
     resolve_missing: "No en ADS aún",
-    btn_bibtex_arxiv: "BibTeX (arXiv)",
-    btn_bibtex_ads: "BibTeX (ADS)",
+    btn_bibtex_arxiv: "⬇ BibTeX (arXiv)",
+    btn_bibtex_ads: "⬇ BibTeX (ADS)",
+    btn_bibtex_arxiv_copy: "📋 BibTeX (arXiv)",
+    btn_bibtex_ads_copy: "📋 BibTeX (ADS)",
     lbl_keywords: "Keywords extraídos:",
     no_abstract: "Sin abstract disponible.",
     expand: "Mostrar más",
@@ -1091,6 +1099,8 @@ const STRINGS = {
     opt_all: "Title and abstract",
     opt_title: "Title only",
     opt_abstract: "Abstract only",
+    opt_title_words: "Full title (by terms)",
+    opt_identifier: "ID — arXiv / bibcode / DOI",
 
     mode_bibcode: "Bibcode / arXiv",
     mode_text: "Free text",
@@ -1101,6 +1111,7 @@ const STRINGS = {
     results_count: (n, total) => `<strong>${n}</strong> results shown${total ? ` out of ${total} total` : ""}`,
     btn_export: "⬇ Export CSV",
     btn_bibtex: "⬇ BibTeX",
+    btn_bibtex_copy: "📋 Copy BibTeX",
     btn_pdf: "⬇ PDF",
     btn_pdfs: n => `⬇ PDFs (${n})`,
     select_all: "Select all",
@@ -1143,8 +1154,10 @@ const STRINGS = {
     resolving: "Resolving...",
     resolve_found: "In ADS",
     resolve_missing: "Not in ADS yet",
-    btn_bibtex_arxiv: "BibTeX (arXiv)",
-    btn_bibtex_ads: "BibTeX (ADS)",
+    btn_bibtex_arxiv: "⬇ BibTeX (arXiv)",
+    btn_bibtex_ads: "⬇ BibTeX (ADS)",
+    btn_bibtex_arxiv_copy: "📋 BibTeX (arXiv)",
+    btn_bibtex_ads_copy: "📋 BibTeX (ADS)",
     lbl_keywords: "Extracted keywords:",
     no_abstract: "No abstract available.",
     expand: "Show more",
@@ -1278,6 +1291,7 @@ function _renderPage() {
       <span id="sel-count" style="font-size:.78rem;color:var(--text2)">${selectedIndices.size > 0 ? t("sel_count", selectedIndices.size) : ""}</span>
       <button class="btn-export" id="btn-sel-all" onclick="toggleSelectAll()">${selectedIndices.size === currentPapers.length && currentPapers.length > 0 ? t("deselect_all") : t("select_all")}</button>
       <button class="btn-export" onclick="exportBibTeX()">${t("btn_bibtex")}</button>
+      <button class="btn-export" onclick="copyBibTeX()">${t("btn_bibtex_copy")}</button>
       <button class="btn-export" onclick="exportCSV()">${t("btn_export")}</button>
       <button class="btn-export" id="btn-dl-pdfs" onclick="downloadSelectedPDFs()" ${selectedIndices.size === 0 ? "disabled title='Selecciona al menos un paper'" : ""}>${t("btn_pdfs", selectedIndices.size)}</button>
     </div>
@@ -1328,6 +1342,7 @@ function _renderPage() {
             ${p.doi ? `<a href="https://doi.org/${encodeURIComponent(p.doi)}" target="_blank"><span class="badge" style="background:#1e3a5f;color:#93c5fd;text-transform:none;font-size:.68rem;cursor:pointer" title="${escHtml(p.doi)}">DOI</span></a>` : ""}
             ${p.bibcode ? `<button class="btn-translate" style="border-color:var(--accent);color:var(--accent)" onclick="goToRefs('${escHtml(p.bibcode)}')" title="Ver referencias de este paper">→ Refs</button>` : ""}
             ${p.bibcode ? `<button class="btn-translate" style="border-color:var(--green);color:var(--green)" onclick="goToCits('${escHtml(p.bibcode)}')" title="Ver quién cita este paper">→ Citas</button>` : ""}
+            ${p.bibcode ? `<button class="btn-translate" style="border-color:var(--purple);color:var(--purple)" onclick="goToSimilar('${escHtml(p.bibcode)}')" title="Buscar papers similares">≈ Similar</button>` : ""}
             ${p.arxiv_id ? `<a href="https://arxiv.org/abs/${encodeURIComponent(p.arxiv_id)}" target="_blank"><span class="badge" style="background:#b91c1c;color:#fecaca;text-transform:none;font-size:.68rem;cursor:pointer">arXiv</span></a>` : ""}
           </div>
           <a class="link-ads" href="${p.url}" target="_blank">${t("open_ads")}</a>
@@ -1586,17 +1601,18 @@ function escHtml(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-function showToast(msg, type = "error") {
+function showToast(msg, type = "error", duration = 4000) {
   const existing = document.getElementById("_toast");
   if (existing) existing.remove();
   const div = document.createElement("div");
   div.id = "_toast";
   div.className = "toast";
-  div.style.background = type === "error" ? "var(--red)" : "var(--green)";
+  const bg = type === "error" ? "var(--red)" : type === "warning" ? "var(--yellow)" : "var(--green)";
+  div.style.background = bg;
   div.style.color = "#fff";
   div.textContent = msg;
   document.body.appendChild(div);
-  setTimeout(() => div.remove(), 4000);
+  setTimeout(() => div.remove(), duration);
 }
 
 function goToRefs(bibcode) {
@@ -1611,6 +1627,16 @@ function goToCits(bibcode) {
   const input = document.getElementById("cits-id");
   if (input) input.value = bibcode;
   setTimeout(() => runCits(), 80);
+}
+
+function goToSimilar(bibcode) {
+  showPanel("similar");
+  const input = document.getElementById("sim-bibcode");
+  if (input) input.value = bibcode;
+  // Asegurar que el modo bibcode está activo
+  const modeBtn = document.getElementById("sim-mode-bibcode");
+  if (modeBtn) modeBtn.click();
+  setTimeout(() => runSimilar(), 80);
 }
 
 function searchAuthorFromCard(authorName) {
@@ -1666,6 +1692,9 @@ async function downloadSelectedPDFs() {
   const bibcodes = [...selectedIndices].sort((a,b) => a-b)
     .map(i => currentPapers[i]?.bibcode).filter(Boolean);
   if (!bibcodes.length) return;
+  if (bibcodes.length > 15) {
+    showToast(`Solo se descargarán los primeros 15 de ${bibcodes.length} papers seleccionados`, "warning", 5000);
+  }
   const btn = document.getElementById("btn-dl-pdfs");
   if (btn) { btn.disabled = true; btn.textContent = "Descargando..."; }
   try {
@@ -1679,11 +1708,13 @@ async function downloadSelectedPDFs() {
       showToast("Error: " + (data.error || res.statusText));
       return;
     }
+    const truncMsg = res.headers.get("X-Truncated");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = "papers.zip"; a.click();
     URL.revokeObjectURL(url);
+    if (truncMsg) showToast(truncMsg, "warning", 5000);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = t("btn_pdfs", selectedIndices.size); }
   }
@@ -2001,7 +2032,8 @@ function _renderDryRun(el, papers) {
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <span id="agbibcode-${i}"></span>
           ${pdfUrl ? `<a href="${escHtml(pdfUrl)}" target="_blank"><button class="btn-translate">⬇ PDF</button></a>` : ""}
-          ${arxivId ? `<button class="btn-translate" onclick="downloadArxivBibtex('${escHtml(arxivId)}', this)">${t("btn_bibtex_arxiv")}</button>` : ""}
+          ${arxivId ? `<button class="btn-translate" onclick="downloadArxivBibtex('${escHtml(arxivId)}', this)">${t("btn_bibtex_arxiv")}</button>
+          <button class="btn-translate" onclick="copyArxivBibtex('${escHtml(arxivId)}', this)">${t("btn_bibtex_arxiv_copy")}</button>` : ""}
           <span id="agads-${i}"></span>
         </div>
         <a class="link-ads" href="${escHtml(p.url)}" target="_blank">arXiv →</a>
@@ -2033,7 +2065,8 @@ async function resolveAllInAds() {
         if (bibEl) bibEl.innerHTML = `<span class="badge badge-bibcode" onclick="copyBibcode('${escHtml(info.bibcode)}')" title="${t('bibcode_copy_title')}: ${escHtml(info.bibcode)}" style="cursor:pointer;user-select:none">📋 ${escHtml(info.bibcode)}</span>`;
         adsEl.innerHTML = `<span class="badge badge-cites">📊 ${info.citations}</span>
           <a href="${escHtml(info.url)}" target="_blank" class="link-ads" style="font-size:.75rem">ADS →</a>
-          <button class="btn-translate" onclick="downloadAdsBibtex('${escHtml(info.bibcode)}', this)">${t("btn_bibtex_ads")}</button>`;
+          <button class="btn-translate" onclick="downloadAdsBibtex('${escHtml(info.bibcode)}', this)">${t("btn_bibtex_ads")}</button>
+          <button class="btn-translate" onclick="copyAdsBibtex('${escHtml(info.bibcode)}', this)">${t("btn_bibtex_ads_copy")}</button>`;
       } else {
         adsEl.innerHTML = `<span class="ads-status ads-status-missing">${t("resolve_missing")}</span>`;
       }
@@ -2068,6 +2101,51 @@ async function downloadAdsBibtex(bibcode, btn) {
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "referencias.bib" });
     a.click(); URL.revokeObjectURL(a.href);
   } catch(e) { showToast(e.message); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+/* ── Copy BibTeX (bulk + individual) ───────────────────────── */
+async function _fetchBibtexText(bibcodes) {
+  const res = await fetch("/api/export_bibtex", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ bibcodes })
+  });
+  if (!res.ok) { const d = await res.json().catch(()=>({})); throw new Error(d.error || res.statusText); }
+  return await res.text();
+}
+
+async function copyBibTeX() {
+  const papers = getExportPapers();
+  const bibcodes = papers.map(p => p.bibcode).filter(Boolean);
+  if (!bibcodes.length) return;
+  try {
+    const text = await _fetchBibtexText(bibcodes);
+    await navigator.clipboard.writeText(text);
+    showToast("BibTeX copiado al portapapeles", "success");
+  } catch(e) { showToast("Error: " + e.message); }
+}
+
+async function copyArxivBibtex(arxivId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "...";
+  try {
+    const res = await fetch(`/api/arxiv/bibtex_arxiv?id=${encodeURIComponent(arxivId)}`);
+    if (!res.ok) { const d = await res.json().catch(()=>({})); showToast(d.error || res.statusText); return; }
+    const text = await res.text();
+    await navigator.clipboard.writeText(text);
+    showToast("BibTeX copiado al portapapeles", "success");
+  } catch(e) { showToast("Error: " + e.message); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+async function copyAdsBibtex(bibcode, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "...";
+  try {
+    const text = await _fetchBibtexText([bibcode]);
+    await navigator.clipboard.writeText(text);
+    showToast("BibTeX copiado al portapapeles", "success");
+  } catch(e) { showToast("Error: " + e.message); }
   finally { btn.disabled = false; btn.textContent = orig; }
 }
 
@@ -2113,19 +2191,40 @@ async function loadDigests() {
       return;
     }
     let html = `<div style="display:flex;flex-direction:column;gap:8px">`;
-    d.files.forEach(f => {
+    d.files.forEach(entry => {
+      const f    = entry.name ?? entry;          // backward-compat si aún llega string
+      const hasMd = entry.has_md ?? false;
       const date = f.replace("digest_", "").replace(".html", "");
-      html += `<div style="display:flex;align-items:center;justify-content:space-between;
+      html += `<div id="digest-row-${escHtml(date)}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;
         background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px">
         <span style="font-size:.88rem">📄 ${escHtml(date)}</span>
-        <a href="/api/arxiv/digest?file=${encodeURIComponent(f)}" target="_blank">
-          <button class="btn-export" style="font-size:.78rem">Abrir →</button>
-        </a>
+        <div style="display:flex;gap:6px;align-items:center">
+          <a href="/api/arxiv/digest?file=${encodeURIComponent(f)}" target="_blank">
+            <button class="btn-export" style="font-size:.78rem">HTML →</button>
+          </a>
+          ${hasMd ? `<a href="/api/arxiv/digest?file=${encodeURIComponent(f)}&fmt=md" download="${escHtml(f.replace('.html','.md'))}">
+            <button class="btn-export" style="font-size:.78rem">⬇ MD</button>
+          </a>` : ""}
+          <button class="btn-export" style="font-size:.78rem;border-color:var(--red);color:var(--red)"
+            onclick="deleteDigest('${escHtml(f)}', '${escHtml(date)}')" title="Borrar este digest">🗑</button>
+        </div>
       </div>`;
     });
     html += `</div>`;
     el.innerHTML = html;
   } catch(e) { el.innerHTML = `<div class="state-error">❌ ${escHtml(e.message)}</div>`; }
+}
+
+async function deleteDigest(filename, date) {
+  if (!confirm(`¿Borrar el digest ${date}?\nSe eliminarán el .html y el .md si existe.`)) return;
+  try {
+    const res = await fetch(`/api/arxiv/digest?file=${encodeURIComponent(filename)}`, { method: "DELETE" });
+    const d = await res.json();
+    if (!res.ok) { showToast("Error: " + (d.error || res.statusText)); return; }
+    const row = document.getElementById(`digest-row-${date}`);
+    if (row) row.remove();
+    showToast(`Digest ${date} eliminado`, "success");
+  } catch(e) { showToast("Error: " + e.message); }
 }
 
 /* ── Config panel ───────────────────────────────────────── */

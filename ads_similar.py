@@ -27,59 +27,46 @@ import sys
 import re
 from dotenv import load_dotenv
 from exporter import papers_to_csv
-from utils import pubdate_filter
+from utils import pubdate_filter, ADS_TOKEN, ADS_API, STOP_WORDS
 
 load_dotenv()
-
-ADS_TOKEN = os.getenv("ADS_TOKEN")
-ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
-
-# Palabras vacías en inglés y español que no aportan a la búsqueda
-STOP_WORDS = {
-    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "this", "that", "these", "those", "we", "our",
-    "us", "they", "their", "it", "its", "as", "which", "who", "when",
-    "where", "how", "what", "than", "then", "here", "also", "both", "each",
-    "all", "such", "into", "through", "using", "used", "use", "show", "shown",
-    "present", "presents", "find", "found", "can", "not", "more", "most",
-    "while", "between", "up", "well", "new", "high", "large", "based",
-    "number", "results", "data", "sample", "paper", "work", "method",
-    "approach", "model", "models", "set", "given", "two", "three", "one",
-    "first", "second", "however", "although", "thus", "therefore",
-}
 
 
 def extract_keywords(text: str, top_n: int = 8) -> list[str]:
     """
     Extrae los términos más relevantes de un texto.
 
-    Estrategia:
-    1. Limpia el texto (quita puntuación, números sueltos)
-    2. Elimina stop words
-    3. Queda con palabras >= 5 caracteres
-    4. Cuenta frecuencias y devuelve las top_n más frecuentes
-
-    Para texto científico esto funciona bien porque los términos
-    técnicos (supernovae, photometric, transient, classification)
-    son largos y aparecen varias veces.
+    Estrategia en dos pasadas:
+    1. Pasada 1 — acrónimos en mayúsculas (GRB, SLSN, ZTF, FBOT…):
+       se extraen antes de normalizar para preservar su forma exacta,
+       que ADS trata como términos de alta especificidad.
+    2. Pasada 2 — términos comunes en minúsculas (≥5 chars), ordenados
+       por frecuencia.  Se excluyen los que ya cubren un acrónimo.
+    Los acrónimos van primero en la lista combinada.
     """
-    # Normalizar: minúsculas, quitar puntuación excepto guiones
-    text  = text.lower()
-    words = re.findall(r"[a-z][a-z\-]{3,}", text)
+    # Pasada 1: acrónimos todo-mayúsculas de 2+ chars
+    raw_acronyms = re.findall(r"\b[A-Z]{2,}\b", text)
+    seen: set[str] = set()
+    acronyms: list[str] = []
+    for a in raw_acronyms:
+        if a not in seen and a.lower() not in STOP_WORDS:
+            seen.add(a)
+            acronyms.append(a)
 
-    # Filtrar stop words y palabras muy cortas
+    # Pasada 2: términos comunes (minúsculas, ≥5 chars)
+    lower_text = text.lower()
+    words = re.findall(r"[a-z][a-z\-]{3,}", lower_text)
     words = [w for w in words if w not in STOP_WORDS and len(w) >= 5]
-
-    # Contar frecuencias
-    freq = {}
+    freq: dict[str, int] = {}
     for w in words:
         freq[w] = freq.get(w, 0) + 1
-
-    # Ordenar por frecuencia y devolver top_n
     sorted_words = sorted(freq, key=freq.get, reverse=True)
-    return sorted_words[:top_n]
+
+    # Combinar: acrónimos primero; excluir variantes minúsculas ya cubiertas
+    acronym_lower = {a.lower() for a in acronyms}
+    regular = [w for w in sorted_words if w not in acronym_lower]
+
+    return (acronyms + regular)[:top_n]
 
 
 def build_text_query(keywords: list[str], year: str = None) -> str:

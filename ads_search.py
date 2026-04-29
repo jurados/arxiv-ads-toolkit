@@ -12,7 +12,6 @@ Uso:
     ads-search "Apellido, Nombre" --year 2023 --first-author
 """
 
-import sys
 import json
 import argparse
 import urllib.request

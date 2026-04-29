@@ -24,12 +24,12 @@ app = Flask(__name__)
 # Top-level imports so errors surface at startup
 from ads_search import search_author
 from ads_topics import search_topics
-from ads_references import fetch_references, arxiv_to_bibcode as refs_arxiv_to_bibcode
-from ads_citations import fetch_citations, arxiv_to_bibcode as cits_arxiv_to_bibcode
+from ads_references import fetch_references
+from ads_citations import fetch_citations
 from ads_similar import search_similar_bibcode, search_similar_text, ADS_API as SIMILAR_ADS_API, ADS_TOKEN as SIMILAR_ADS_TOKEN
-from ads_chain import build_chain, arxiv_to_bibcode as chain_arxiv_to_bibcode
-from ads_download import get_pdf_url, get_paper_metadata, make_filename, fetch_pdf_bytes, arxiv_to_bibcode as dl_arxiv_to_bibcode, get_papers_metadata_batch
-from utils import is_arxiv_id
+from ads_chain import build_chain
+from ads_download import get_pdf_url, get_paper_metadata, make_filename, fetch_pdf_bytes, get_papers_metadata_batch
+from utils import is_arxiv_id, arxiv_to_bibcode, fetch_arxiv_doc
 
 
 def _paper_to_dict(paper: dict) -> dict:
@@ -164,7 +164,7 @@ def api_references():
     try:
         bibcode = identifier
         if is_arxiv_id(identifier):
-            bibcode = refs_arxiv_to_bibcode(identifier)
+            bibcode = arxiv_to_bibcode(identifier)
             if not bibcode:
                 return jsonify({"error": f"Could not resolve arXiv ID: {identifier}"}), 404
         papers, total = fetch_references(bibcode, year=year, rows=rows)
@@ -184,7 +184,7 @@ def api_citations():
     try:
         bibcode = identifier
         if is_arxiv_id(identifier):
-            bibcode = cits_arxiv_to_bibcode(identifier)
+            bibcode = arxiv_to_bibcode(identifier)
             if not bibcode:
                 return jsonify({"error": f"Could not resolve arXiv ID: {identifier}"}), 404
         papers, total = fetch_citations(bibcode, year=year, rows=rows)
@@ -240,7 +240,7 @@ def api_chain():
     try:
         bibcode = identifier
         if is_arxiv_id(identifier):
-            bibcode = chain_arxiv_to_bibcode(identifier)
+            bibcode = arxiv_to_bibcode(identifier)
             if not bibcode:
                 return jsonify({"error": f"Could not resolve arXiv ID: {identifier}"}), 404
         papers = build_chain(bibcode, levels=levels, max_per_level=max_per_level, rows_per_paper=rows, year=year)
@@ -269,7 +269,7 @@ def api_compare():
     try:
         def resolve(identifier):
             if is_arxiv_id(identifier):
-                return refs_arxiv_to_bibcode(identifier)
+                return arxiv_to_bibcode(identifier)
             return identifier
 
         bc_a, bc_b = resolve(id_a), resolve(id_b)
@@ -327,7 +327,7 @@ def api_download():
     try:
         bibcode = identifier
         if is_arxiv_id(identifier):
-            bibcode = dl_arxiv_to_bibcode(identifier)
+            bibcode = arxiv_to_bibcode(identifier)
             if not bibcode:
                 return jsonify({"error": f"Could not resolve: {identifier}"}), 404
         pdf_url, _ = get_pdf_url(bibcode)
@@ -351,7 +351,9 @@ def api_download():
 def api_download_batch():
     import zipfile
     data = request.get_json()
-    bibcodes = data.get("bibcodes", [])[:15]
+    all_bibcodes = data.get("bibcodes", [])
+    truncated = len(all_bibcodes) > 15
+    bibcodes = all_bibcodes[:15]
     if not bibcodes:
         return jsonify({"error": "No bibcodes provided"}), 400
     try:
@@ -376,18 +378,16 @@ def api_download_batch():
         if found == 0:
             return jsonify({"error": "No se encontraron PDFs de acceso abierto para los papers seleccionados"}), 404
         zip_buffer.seek(0)
-        return Response(
-            zip_buffer.read(),
-            mimetype="application/zip",
-            headers={"Content-Disposition": "attachment; filename=papers.zip"}
-        )
+        headers = {"Content-Disposition": "attachment; filename=papers.zip"}
+        if truncated:
+            headers["X-Truncated"] = f"Solo se procesaron 15 de {len(all_bibcodes)} papers seleccionados"
+        return Response(zip_buffer.read(), mimetype="application/zip", headers=headers)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/export_bibtex", methods=["POST"])
 def api_export_bibtex():
-    import urllib.request
     data = request.get_json()
     bibcodes = data.get("bibcodes", [])
     if not bibcodes:
@@ -536,8 +536,14 @@ def api_config_whatsapp():
 @app.route("/api/arxiv/digests", methods=["GET"])
 def api_arxiv_digests():
     try:
-        from digester import list_digests
-        return jsonify({"files": list_digests()})
+        from digester import list_digests, has_md_digest
+        files = list_digests()
+        return jsonify({
+            "files": [
+                {"name": f, "has_md": has_md_digest(f)}
+                for f in files
+            ]
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -545,14 +551,39 @@ def api_arxiv_digests():
 @app.route("/api/arxiv/digest", methods=["GET"])
 def api_arxiv_digest_file():
     filename = request.args.get("file", "").strip()
-    if not filename or "/" in filename or ".." in filename or not filename.endswith(".html"):
+    fmt      = request.args.get("fmt", "html")   # html (default) o md
+    if not filename or "/" in filename or ".." in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    # Normalizar: el usuario puede pedir el .md pasando fmt=md o directamente .md
+    if fmt == "md":
+        filename = filename.replace(".html", ".md")
+    if not (filename.endswith(".html") or filename.endswith(".md")):
         return jsonify({"error": "Invalid filename"}), 400
     filepath = os.path.join(os.path.dirname(__file__), "digests", filename)
     if not os.path.exists(filepath):
         return jsonify({"error": "File not found"}), 404
     with open(filepath, encoding="utf-8") as f:
         content = f.read()
-    return Response(content, mimetype="text/html")
+    mimetype = "text/html" if filename.endswith(".html") else "text/markdown"
+    return Response(content, mimetype=mimetype)
+
+
+@app.route("/api/arxiv/digest", methods=["DELETE"])
+def api_arxiv_digest_delete():
+    """Borra el .html y, si existe, el .md del digest indicado."""
+    filename = request.args.get("file", "").strip()
+    if not filename or "/" in filename or ".." in filename or not filename.endswith(".html"):
+        return jsonify({"error": "Invalid filename"}), 400
+    digest_dir = os.path.join(os.path.dirname(__file__), "digests")
+    deleted = []
+    for name in (filename, filename.replace(".html", ".md")):
+        path = os.path.join(digest_dir, name)
+        if os.path.exists(path):
+            os.remove(path)
+            deleted.append(name)
+    if not deleted:
+        return jsonify({"error": "File not found"}), 404
+    return jsonify({"ok": True, "deleted": deleted})
 
 
 @app.route("/api/arxiv/logs", methods=["GET"])
@@ -628,44 +659,39 @@ def api_translate():
 
 @app.route("/api/arxiv/resolve", methods=["POST"])
 def api_arxiv_resolve():
-    """Resuelve IDs de arXiv a bibcodes de ADS en batch."""
-    import urllib.request, urllib.parse
+    """Resuelve IDs de arXiv a bibcodes de ADS en batch (paralelo)."""
+    from concurrent.futures import ThreadPoolExecutor
     data = request.get_json()
     ids = [i.strip() for i in data.get("ids", []) if i.strip()][:25]
     if not ids:
         return jsonify({"results": {}})
-    token = os.getenv("ADS_TOKEN")
-    results = {}
-    for arxiv_id in ids:
+
+    def _resolve_one(arxiv_id: str):
         clean = arxiv_id.replace("arXiv:", "").replace("arxiv:", "")
         try:
-            params = urllib.parse.urlencode({
-                "q": f'identifier:"arXiv:{clean}"',
-                "fl": "bibcode,citation_count",
-                "rows": 1,
-            })
-            req = urllib.request.Request(
-                f"https://api.adsabs.harvard.edu/v1/search/query?{params}",
-                headers={"Authorization": f"Bearer {token}"}
-            )
-            with urllib.request.urlopen(req, timeout=10) as r:
-                docs = json.load(r).get("response", {}).get("docs", [])
-            if docs:
-                bc = docs[0]["bibcode"]
-                results[clean] = {
+            doc = fetch_arxiv_doc(clean, fl="bibcode,citation_count")
+            if doc:
+                bc = doc["bibcode"]
+                return clean, {
                     "bibcode": bc,
                     "url": f"https://ui.adsabs.harvard.edu/abs/{urllib.parse.quote(bc)}",
-                    "citations": docs[0].get("citation_count", 0),
+                    "citations": doc.get("citation_count", 0),
                 }
         except Exception:
             pass
+        return clean, None
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=min(8, len(ids))) as pool:
+        for clean, info in pool.map(_resolve_one, ids):
+            if info:
+                results[clean] = info
     return jsonify({"results": results})
 
 
 @app.route("/api/arxiv/bibtex_arxiv", methods=["GET"])
 def api_arxiv_bibtex_arxiv():
     """Descarga el BibTeX de arXiv directamente (sin ADS)."""
-    import urllib.request
     arxiv_id = request.args.get("id", "").strip()
     if not arxiv_id:
         return jsonify({"error": "No ID provided"}), 400

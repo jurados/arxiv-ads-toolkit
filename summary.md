@@ -10,19 +10,22 @@ Conjunto de herramientas para un astrónomo especializado en supernovas, transie
 arxiv-agent/
 ├── main.py            # Agente diario arXiv → WhatsApp
 ├── fetcher.py         # Consulta API de arXiv y filtra papers
-├── notifier.py        # Traduce abstracts y envía por WhatsApp
-├── digester.py        # Genera digest diario en HTML (digests/)
+├── notifier.py        # Traduce abstracts y envía por WhatsApp (con reintentos)
+├── digester.py        # Genera digest diario en HTML + Markdown (digests/)
 ├── config.py          # Keywords, categorías y configuración
 ├── run.sh             # Wrapper para el cron job (con bridge check)
 ├── app.py             # Interfaz web Flask (todas las herramientas ADS)
 ├── run_web.sh         # Script para arrancar la interfaz web (con bridge check)
+├── utils.py           # Módulo central: ADS_TOKEN, ADS_API, STOP_WORDS,
+│                      #   fetch_arxiv_doc, arxiv_to_bibcode, is_arxiv_id,
+│                      #   pubdate_filter
 ├── templates/
-│   └── index.html     # Frontend de la app web (dark/light, ES/EN)
-├── digests/           # Digest HTML diario (digest_YYYY-MM-DD.html)
-├── summary.html       # Documentación HTML generada desde este archivo
-├── utils.py           # Utilidades compartidas: is_arxiv_id, pubdate_filter
+│   └── index.html     # Frontend de la app web (dark/light, ES/EN, favicon SVG)
+├── digests/           # Digests diarios (digest_YYYY-MM-DD.html + .md)
+├── summary.md         # Este archivo — documentación técnica completa
+├── summary.html       # Versión HTML de la documentación
 ├── ads_search.py      # Buscar papers por autor en NASA ADS
-├── ads_topics.py      # Buscar papers por concepto/frase
+├── ads_topics.py      # Buscar papers por concepto/frase/ID/título completo
 ├── ads_references.py  # Extraer referencias de un paper
 ├── ads_citations.py   # Ver quién cita un paper
 ├── ads_similar.py     # Encontrar papers similares
@@ -39,7 +42,7 @@ arxiv-agent/
 
 ## 0. Interfaz web (app.py)
 
-Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye modo oscuro/claro, interfaz en español e inglés, y traducción de abstracts al español con un clic.
+Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye modo oscuro/claro, interfaz en español e inglés, favicon SVG personalizado y traducción de abstracts al español con un clic.
 
 ### Iniciar la app
 
@@ -53,54 +56,84 @@ Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye m
 | Característica | Detalle |
 |---|---|
 | Herramientas disponibles | ads-search, ads-topics, ads-references, ads-citations, ads-similar, ads-chain, ads-download |
-| Modo oscuro / claro | Toggle en la barra superior |
-| Idioma ES / EN | Toggle instantáneo sin recargar |
+| Modo oscuro / claro | Toggle en la barra superior, persiste en localStorage |
+| Idioma ES / EN | Toggle instantáneo sin recargar, persiste en localStorage |
+| Favicon | SVG personalizado incrustado (orbital azul, sin archivos externos) |
 | Traducir abstract | Botón 🌐 en cada resultado (Google Translate, sin API key) |
 | Selección de papers | Checkboxes por paper + "Seleccionar todos" |
 | Exportar CSV | Solo papers seleccionados; descarga `literatura.csv` |
-| Exportar BibTeX | Solo papers seleccionados; descarga `references.bib` vía NASA ADS |
+| Exportar BibTeX | Descarga o copia al portapapeles (arXiv o ADS) sin necesidad de guardar archivo |
 | Descargar PDF | El PDF se descarga directamente desde el navegador |
+| Descarga batch | Hasta 15 papers a la vez; muestra advertencia si hay más seleccionados |
 | Paginación | 20 papers por página con navegación anterior/siguiente |
-| Ordenar por año | Botones ↑ / ↓ en cualquier resultado; preserva selección al cambiar página |
+| Ordenar por citas | Botones ↑ / ↓ en cualquier resultado; preserva selección al cambiar página |
 | Badge de citas | Número de citas de NASA ADS mostrado en cada tarjeta |
-| Badge arXiv | ID de arXiv detectado desde bibcode o campo `identifier`; enlaza a arxiv.org |
-| Badge DOI | DOI del paper (campo `doi` de ADS); enlaza a doi.org |
-| Paper-to-Code | Detección automática de repositorios (GitHub/GitLab/PyPI) en abstracts y comentarios |
+| Badge arXiv | ID de arXiv detectado; enlaza directamente a arxiv.org |
+| Badge DOI | DOI del paper; enlaza a doi.org |
+| Paper-to-Code | Detección automática de repositorios (GitHub/GitLab/PyPI) en abstracts |
 | Grafo de cadena | Visualización interactiva de la cadena de referencias con vis.js |
-| Digests guardados | Lista de digests HTML diarios accesibles desde el panel del agente |
+| Navegación cruzada | Botones → Refs, → Citas, ≈ Similar en cada tarjeta para saltar de panel |
+| Digests guardados | Lista de digests HTML + MD diarios accesibles desde el panel del agente |
+| Borrar digest | Botón 🗑 por digest; elimina .html y .md simultáneamente |
 | Panel de configuración | Editar categorías, keywords, hours_back y max_results sin tocar el código |
-| Restaurar valores por defecto | Botón en el panel de configuración que restablece las keywords originales |
+| Restaurar valores | Botón en el panel de configuración que restablece las keywords originales |
 | Panel Comparar (⚖️) | Compara dos papers: referencias comunes, citaciones cruzadas, totales |
 | Editor número WhatsApp | Cambiar el número destinatario del agente directamente desde la UI |
 | arXiv → ADS | El dry-run resuelve cada paper arXiv en NASA ADS: bibcode, citas, PDF directo |
-| Scroll-to-top | Botón flotante que aparece al bajar; vuelve al inicio del panel `.main` |
-| Footer de paper | Orden: Traducir → PDF → Code → Bibcode → DOI → Refs → Citas → arXiv |
+| Scroll-to-top | Botón flotante que aparece al bajar; vuelve al inicio del panel |
+| Búsqueda por autor desde tarjeta | Click en el nombre de un autor busca todos sus papers |
 
 ### Rutas de la API
 
 | Ruta | Método | Descripción |
 |---|---|---|
 | `/` | GET | Interfaz web principal |
-| `/api/search` | POST | ads-search |
-| `/api/topics` | POST | ads-topics |
+| `/api/search` | POST | ads-search (por autor) |
+| `/api/topics` | POST | ads-topics (por concepto, título, identificador) |
 | `/api/references` | POST | ads-references |
 | `/api/citations` | POST | ads-citations |
 | `/api/similar` | POST | ads-similar (modo bibcode o texto) |
 | `/api/chain` | POST | ads-chain (devuelve papers + edges para el grafo) |
 | `/api/download` | POST | ads-download (devuelve el PDF) |
-| `/api/download_batch` | POST | Descarga batch con metadata en una sola llamada a ADS |
+| `/api/download_batch` | POST | Descarga batch con metadata; header `X-Truncated` si >15 |
 | `/api/compare` | POST | Compara dos papers: refs/citas comunes (paralelo con ThreadPoolExecutor) |
 | `/api/translate` | POST | Traduce un texto al español |
 | `/api/export_csv` | POST | CSV de papers seleccionados |
 | `/api/export_bibtex` | POST | BibTeX de papers seleccionados vía NASA ADS |
-| `/api/arxiv/resolve` | POST | Resuelve IDs arXiv a bibcodes de ADS (batch) |
 | `/api/arxiv/bibtex_arxiv` | GET | BibTeX de un paper directamente desde arXiv |
+| `/api/arxiv/resolve` | POST | Resuelve IDs arXiv a bibcodes de ADS (batch, usa `fetch_arxiv_doc`) |
 | `/api/arxiv/dryrun` | GET | Dry-run del agente; retorna `hours_back` y lista de papers |
 | `/api/config` | GET | Lee `config.py` y devuelve sus valores |
 | `/api/config/save` | POST | Escribe `config.py` y recarga el módulo en caliente |
 | `/api/config/whatsapp` | POST | Actualiza `WHATSAPP_NUMBER` en `config.py` |
-| `/api/arxiv/digests` | GET | Lista los digests HTML guardados en `digests/` |
-| `/api/arxiv/digest` | GET | Sirve el contenido de un digest específico |
+| `/api/arxiv/digests` | GET | Lista digests con `{name, has_md}` |
+| `/api/arxiv/digest` | GET | Sirve el contenido de un digest (HTML o MD con `?fmt=md`) |
+| `/api/arxiv/digest` | DELETE | Elimina un digest (.html y .md si existe) |
+| `/api/arxiv/status` | GET | Estado del agente (último envío, keywords, categorías) |
+| `/api/arxiv/logs` | GET | Últimas líneas del log del agente |
+| `/api/matrix` | GET | Carga un CSV como matriz de literatura |
+| `/api/matrix/save` | POST | Guarda cambios de la matriz en disco |
+| `/api/shutdown` | POST | Apaga el servidor Flask |
+
+---
+
+## Módulo central: `utils.py`
+
+Único punto de verdad para las constantes y funciones compartidas por todos los módulos `ads_*.py` y `app.py`.
+
+```python
+from utils import (
+    ADS_TOKEN,        # Bearer token de NASA ADS
+    ADS_API,          # URL base de la API ADS
+    STOP_WORDS,       # Set de ~100 palabras vacías (gramaticales + científicas genéricas)
+    fetch_arxiv_doc,  # Resuelve arXiv ID → dict ADS (fl configurable)
+    arxiv_to_bibcode, # Wrapper: arXiv ID → bibcode (verbose=False para uso silencioso)
+    is_arxiv_id,      # Detecta si un string tiene formato arXiv (YYMM.NNNNN)
+    pubdate_filter,   # Convierte año/"2020-2023"/"2020-" a filtro ADS pubdate:[...]
+)
+```
+
+**`fetch_arxiv_doc(arxiv_id, fl="bibcode,title")`** — función base que hace la llamada HTTP a ADS; `arxiv_to_bibcode` la usa internamente. `api_arxiv_resolve` también la usa directamente con `fl="bibcode,citation_count"`.
 
 ---
 
@@ -109,7 +142,7 @@ Todas las herramientas NASA ADS están disponibles desde un navegador. Incluye m
 | Comando | Descripción |
 |---|---|
 | `ads-search` | Buscar papers por autor |
-| `ads-topics` | Buscar papers por concepto o frase |
+| `ads-topics` | Buscar papers por concepto, frase, título completo o identificador |
 | `ads-references` | Extraer referencias de un paper |
 | `ads-citations` | Ver quién cita un paper |
 | `ads-similar` | Encontrar papers similares |
@@ -135,7 +168,7 @@ Todas aceptan `--export archivo.csv` para acumular resultados en una matriz de l
 | `--export matriz.csv` | todos | Exportar resultados a CSV |
 | `--rows N` | todos | Número máximo de resultados |
 
-Los rangos de año son gestionados centralmente por `utils.pubdate_filter()`, compartido por todos los módulos `ads_*.py`.
+Los rangos de año son gestionados centralmente por `utils.pubdate_filter()`.
 
 ---
 
@@ -151,18 +184,19 @@ ads-search "Apellido, Nombre" --year 2022 --first-author --export matriz.csv
 
 **Opciones exclusivas:** `--first-author` (solo papers donde es primer autor)
 
-**Ejemplos reales:**
-```bash
-ads-search "Forster, Francisco" --year 2022 --first-author
-# → 2 resultado(s) | solo primer autor
-# [01] DELIGHT: Deep Learning Identification of Galaxy Hosts...
-```
-
 ---
 
-### `ads-topics` — Buscar por concepto o frase
+### `ads-topics` — Buscar por concepto, frase o identificador
 
-Busca la frase de forma exacta en título y/o abstract. Frases muy largas pueden dar 0 resultados — usar menos palabras.
+Busca en título y/o abstract. Soporta cinco modos de campo (`--field`):
+
+| Modo | Descripción |
+|---|---|
+| `all` (default) | Frase exacta en título **o** abstract |
+| `title` | Frase exacta solo en título |
+| `abstract` | Frase exacta solo en abstract |
+| `title-words` | Términos individuales en título (ignora stopwords; útil para títulos completos) |
+| `identifier` | Lookup directo: arXiv ID, DOI (`10.xxxx/...`) o bibcode ADS |
 
 ```bash
 ads-topics "supernova classification"
@@ -170,15 +204,19 @@ ads-topics "kilonova" --year 2024
 ads-topics "supernova classification" --year 2024-2026 --rows 10
 ads-topics "core collapse" --field abstract --rows 30
 ads-topics "multimodal astronomy" --field title --export matriz.csv
-```
 
-**Opciones exclusivas:** `--field title|abstract|all` (dónde buscar, default: `all`)
+# Buscar por título completo (evita 0 resultados por stopwords en modo phrase)
+ads-topics "Optical and Ultraviolet Observations of the Very Young Type IIP SN 2014cx" --field title-words
+
+# Buscar por identificador
+ads-topics "2301.07688" --field identifier          # arXiv ID
+ads-topics "2022AJ....164..195F" --field identifier  # bibcode ADS
+ads-topics "10.3847/1538-3881/ac8a9b" --field identifier  # DOI
+```
 
 ---
 
 ### `ads-references` — Extraer referencias de un paper
-
-Dado un bibcode o ID de arXiv, muestra todos los papers que ese trabajo cita.
 
 ```bash
 ads-references "2022AJ....164..195F"              # bibcode
@@ -190,8 +228,6 @@ ads-references "2022AJ....164..195F" --export matriz.csv
 ---
 
 ### `ads-citations` — Ver quién cita un paper
-
-Inverso de `ads-references`: muestra los papers que citan al trabajo dado.
 
 ```bash
 ads-citations "2022AJ....164..195F"
@@ -208,46 +244,39 @@ ads-citations   →  ¿quién construyó sobre él?     (hacia adelante)
 
 ### `ads-similar` — Encontrar papers similares
 
-Dos modos: similitud semántica real de ADS (por bibcode) o búsqueda por keywords extraídos de un texto.
+Dos modos. En modo texto, `extract_keywords` preserva acrónimos en mayúsculas (GRB, SLSN, ZTF, FBOT…) antes de normalizar el texto, mejorando la precisión de la búsqueda.
 
 ```bash
-# Modo bibcode — similitud semántica de ADS
+# Modo bibcode — similitud semántica real de ADS
 ads-similar --bibcode "2022AJ....164..195F"
 ads-similar --bibcode "2022AJ....164..195F" --year 2020-2026 --rows 15
 
-# Modo texto — pega un párrafo de tu paper
+# Modo texto — extrae keywords del párrafo
 ads-similar --text "We use a recurrent neural network to classify supernovae light curves"
-ads-similar --text "tu párrafo aquí" --year 2022-2026 --rows 20
+ads-similar --text "GRB afterglow classification using ZTF photometry" --year 2022-2026
 
-# Modo archivo — escribe tu abstract en un .txt
+# Modo archivo
 ads-similar --file mi_abstract.txt --export matriz.csv
 ```
+
+El paper semilla se excluye automáticamente de los resultados en modo bibcode.
 
 ---
 
 ### `ads-chain` — Cadena de referencias multinivel
 
-Rastrea las referencias de un paper nivel por nivel. Útil para mapear el árbol genealógico de una idea.
-
-**Advertencia:** crece exponencialmente. Usar `--max-per-level` para controlarlo.
-
 ```bash
 ads-chain "2022AJ....164..195F"                                   # 2 niveles (default)
 ads-chain "2022AJ....164..195F" --levels 3
 ads-chain "2022AJ....164..195F" --levels 4 --max-per-level 5
-ads-chain "2022AJ....164..195F" --levels 3 --year 2018-2026
 ads-chain "2022AJ....164..195F" --levels 3 --export cadena.csv
 ```
-
-**Opciones exclusivas:**
 
 | Opción | Default | Descripción |
 |---|---|---|
 | `--levels` | 2 | Niveles de profundidad |
 | `--max-per-level` | 10 | Máx. papers a expandir por nivel |
 | `--rows` | 30 | Máx. referencias a buscar por paper |
-
-**Guía de parámetros:**
 
 | Objetivo | `--levels` | `--max-per-level` |
 |---|---|---|
@@ -256,13 +285,32 @@ ads-chain "2022AJ....164..195F" --levels 3 --export cadena.csv
 | Búsqueda profunda | 3 | 10 |
 | Árbol completo | 4+ | 5 |
 
-El CSV generado incluye una columna `level` para saber a qué profundidad se encontró cada paper.
+---
+
+### `ads-download` — Descargar PDFs de acceso abierto
+
+```bash
+ads-download "2022AJ....164..195F"              # bibcode
+ads-download "2208.04310"                       # arXiv ID
+ads-download "2022AJ....164..195F" --dir ~/papers
+ads-download --from-csv mi_matriz.csv
+ads-download --from-csv mi_matriz.csv --dir ~/papers/matriz
+```
+
+| Fuente | Tipo | Acceso |
+|---|---|---|
+| `EPRINT_PDF` | arXiv PDF | Siempre gratuito |
+| `ADS_PDF` | PDF alojado en ADS | Gratuito |
+| `ADS_SCAN` | Escaneo digitalizado | Gratuito |
+| `PUB_PDF` | PDF del publisher | Puede requerir suscripción |
+
+**Nombre de archivo generado:** `YYYY_PrimerApellido_PrimeraPalabraTitulo.pdf`
 
 ---
 
 ## Exportación CSV — Matriz de Literatura
 
-Todos los scripts de NASA ADS aceptan `--export archivo.csv`. Las búsquedas se acumulan en el mismo archivo sin duplicar papers.
+Todos los scripts aceptan `--export archivo.csv`. Las búsquedas se acumulan en el mismo archivo sin duplicar bibcodes.
 
 ### Columnas del CSV
 
@@ -274,10 +322,10 @@ Todos los scripts de NASA ADS aceptan `--export archivo.csv`. Las búsquedas se 
 | `doctype` | NASA ADS | Tipo (article, thesis, book) |
 | `first_author` | NASA ADS | Primer autor |
 | `url` | NASA ADS | Enlace web en ADS |
-| `method` | tú | Técnica o método usado |
-| `key_finding` | tú | Hallazgo principal |
-| `relevance` | tú | Relevancia para tu paper |
-| `notes` | tú | Notas libres |
+| `method` | usuario | Técnica o método usado |
+| `key_finding` | usuario | Hallazgo principal |
+| `relevance` | usuario | Relevancia para tu paper |
+| `notes` | usuario | Notas libres |
 | `level` | ads-chain | Nivel de profundidad (solo en cadena) |
 
 ### Flujo típico para construir una matriz
@@ -285,60 +333,47 @@ Todos los scripts de NASA ADS aceptan `--export archivo.csv`. Las búsquedas se 
 ```bash
 source ~/.bashrc
 
-# 1. Papers de un autor clave
 ads-search "Apellido, Nombre" --year 2018-2026 --export mi_matriz.csv
-
-# 2. Papers sobre el tema central
-ads-topics "mi concepto principal" --rows 30 --export mi_matriz.csv
-
-# 3. Referencias de un paper seminal
+ads-topics "mi concepto" --rows 30 --export mi_matriz.csv
 ads-references "bibcode_seminal" --export mi_matriz.csv
-
-# 4. Quién cita ese paper (trabajos recientes)
 ads-citations "bibcode_seminal" --year 2022-2026 --export mi_matriz.csv
-
-# 5. Papers similares a tu abstract
 ads-similar --file mi_abstract.txt --export mi_matriz.csv
-
-# 6. Árbol de referencias en profundidad
 ads-chain "bibcode_seminal" --levels 3 --export mi_matriz.csv
-
 # Abrir en Excel / Google Sheets y completar las columnas vacías
 ```
 
 ---
 
-### `ads-download` — Descargar PDFs de acceso abierto
+## 2. Agente arXiv Diario
 
-Dado un bibcode o ID de arXiv, descarga el PDF usando los links de acceso abierto de NASA ADS. Prioriza arXiv (siempre gratuito) sobre otras fuentes. También puede descargar todos los papers de un CSV.
+Busca papers nuevos en arXiv, genera un digest HTML + Markdown y los envía por WhatsApp.
+
+### Ejecución
 
 ```bash
-# Paper individual por bibcode
-ads-download "2022AJ....164..195F"
-
-# Paper individual por arXiv ID
-ads-download "2208.04310"
-
-# Elegir directorio de descarga
-ads-download "2022AJ....164..195F" --dir ~/papers
-
-# Descargar todos los papers de la matriz
-ads-download --from-csv mi_matriz.csv
-
-# Descargar matriz en un directorio específico
-ads-download --from-csv mi_matriz.csv --dir ~/papers/matriz
+python main.py             # ejecución normal
+python main.py --dry-run   # muestra papers sin enviar nada
+/home/jurados/arxiv-agent/run.sh  # usado por cron
 ```
 
-**Prioridad de fuentes (de más a menos confiable):**
+### Flujo
 
-| Fuente | Tipo | Acceso |
-|---|---|---|
-| `EPRINT_PDF` | arXiv PDF | Siempre gratuito |
-| `ADS_PDF` | PDF alojado en ADS | Gratuito |
-| `ADS_SCAN` | Escaneo digitalizado | Gratuito |
-| `PUB_PDF` | PDF del publisher | Puede requerir suscripción |
+1. `fetcher.py` consulta la API de arXiv para las categorías en `config.py`
+2. Filtra por keywords (sin límite; usa `MAX_RESULTS` como tope de resultados)
+3. `digester.py` genera `digests/digest_YYYY-MM-DD.html` y `.md`
+4. `notifier.py` traduce y envía por WhatsApp (3 reintentos con 2 s de pausa)
+5. Guarda fecha en `.last_run` para no reenviar el mismo día
 
-**Nombre de archivo generado:** `YYYY_PrimerApellido_PrimeraPalabraTitulo.pdf`
+### Configuración (`config.py`)
+
+```python
+CATEGORIES  = ["astro-ph.HE", "astro-ph.SR", "astro-ph.IM", "cs.LG"]
+KEYWORDS    = ["supernova", "GRB", "kilonova", "SLSN", ...]
+MAX_RESULTS = 50    # tope de papers por ejecución
+HOURS_BACK  = 72    # ventana de búsqueda en horas
+```
+
+Editable desde la interfaz web (panel Configuración) sin tocar el código.
 
 ---
 

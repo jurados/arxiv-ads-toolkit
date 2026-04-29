@@ -3,7 +3,7 @@ import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
-from config import CATEGORIES, KEYWORDS, HOURS_BACK
+from config import CATEGORIES, KEYWORDS, HOURS_BACK, MAX_RESULTS
 
 ATOM_NS   = "{http://www.w3.org/2005/Atom}"
 PAGE_SIZE = 50   # arXiv API page size
@@ -25,7 +25,7 @@ def build_query():
         else:
             kw_parts.append(f"ti:{safe} OR abs:{safe}")
 
-    kw_query = " OR ".join(kw_parts[:15])
+    kw_query = " OR ".join(kw_parts)
     return f"({cat_query}) AND ({kw_query})"
 
 
@@ -106,6 +106,10 @@ def fetch_papers() -> list:
                 "url":       _normalize_url(raw_id),
                 "published": pub_dt.strftime("%Y-%m-%d %H:%M UTC"),
             })
+
+        if len(papers) >= MAX_RESULTS:
+            print(f"[fetcher] Límite de {MAX_RESULTS} papers alcanzado.")
+            break
 
         if not page_had_recent:
             # All entries on this page are past the cutoff — stop paginating

@@ -21,41 +21,9 @@ import os
 import sys
 from dotenv import load_dotenv
 from exporter import papers_to_csv
-from utils import is_arxiv_id, pubdate_filter
+from utils import is_arxiv_id, pubdate_filter, arxiv_to_bibcode, ADS_TOKEN, ADS_API
 
 load_dotenv()
-
-ADS_TOKEN = os.getenv("ADS_TOKEN")
-ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
-
-
-def arxiv_to_bibcode(arxiv_id: str) -> str | None:
-    """
-    Busca en ADS el bibcode correspondiente a un ID de arXiv.
-    ADS indexa los papers de arXiv y los vincula con su bibcode oficial.
-    """
-    clean = arxiv_id.replace("arXiv:", "").replace("arxiv:", "")
-    params = urllib.parse.urlencode({
-        "q":    f'identifier:"arXiv:{clean}"',
-        "fl":   "bibcode,title",
-        "rows": 1,
-    })
-    req = urllib.request.Request(
-        f"{ADS_API}?{params}",
-        headers={"Authorization": f"Bearer {ADS_TOKEN}"},
-    )
-    with urllib.request.urlopen(req, timeout=15) as r:
-        data = json.load(r)
-
-    docs = data.get("response", {}).get("docs", [])
-    if not docs:
-        return None
-
-    bibcode = docs[0]["bibcode"]
-    title   = docs[0].get("title", ["?"])[0]
-    print(f"[→] arXiv:{clean} encontrado como: {bibcode}")
-    print(f"    {title[:70]}")
-    return bibcode
 
 
 def fetch_references(bibcode: str, year: str = None, rows: int = 200) -> tuple[list, int]:
@@ -147,7 +115,7 @@ def main():
     # Si es arXiv ID, primero convertimos a bibcode
     if is_arxiv_id(args.identifier):
         print(f"Buscando bibcode para arXiv:{args.identifier}...")
-        bibcode = arxiv_to_bibcode(args.identifier)
+        bibcode = arxiv_to_bibcode(args.identifier, verbose=True)
         if not bibcode:
             print(f"ERROR: No se encontró el paper arXiv:{args.identifier} en NASA ADS.")
             print("Puede que sea muy reciente. Prueba con el bibcode directamente.")

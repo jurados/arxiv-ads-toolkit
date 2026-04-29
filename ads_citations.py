@@ -21,31 +21,9 @@ import os
 import sys
 from dotenv import load_dotenv
 from exporter import papers_to_csv
-from utils import is_arxiv_id, pubdate_filter
+from utils import is_arxiv_id, pubdate_filter, arxiv_to_bibcode, ADS_TOKEN, ADS_API
 
 load_dotenv()
-
-ADS_TOKEN = os.getenv("ADS_TOKEN")
-ADS_API   = "https://api.adsabs.harvard.edu/v1/search/query"
-
-
-def arxiv_to_bibcode(arxiv_id: str) -> str | None:
-    """Convierte un arXiv ID a bibcode."""
-    clean  = arxiv_id.replace("arXiv:", "").replace("arxiv:", "")
-    params = urllib.parse.urlencode({
-        "q":    f'identifier:"arXiv:{clean}"',
-        "fl":   "bibcode",
-        "rows": 1,
-    })
-    req = urllib.request.Request(
-        f"{ADS_API}?{params}",
-        headers={"Authorization": f"Bearer {ADS_TOKEN}"},
-    )
-    with urllib.request.urlopen(req, timeout=15) as r:
-        data = json.load(r)
-
-    docs = data.get("response", {}).get("docs", [])
-    return docs[0]["bibcode"] if docs else None
 
 
 def fetch_citations(bibcode: str, year: str = None, rows: int = 200) -> tuple[list, int]:

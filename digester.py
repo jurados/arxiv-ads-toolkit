@@ -41,6 +41,9 @@ def save_digest_md(papers: list, date_str: str) -> str:
 
 
 def list_digests() -> list[str]:
+    """Devuelve los digests HTML ordenados por fecha descendente.
+    Los .md paralelos no se listan —se accede a ellos por el mismo
+    nombre base cambiando la extensión."""
     if not os.path.exists(DIGEST_DIR):
         return []
     return sorted(
@@ -48,6 +51,12 @@ def list_digests() -> list[str]:
          if f.startswith("digest_") and f.endswith(".html")],
         reverse=True,
     )
+
+
+def has_md_digest(html_filename: str) -> bool:
+    """Devuelve True si existe el .md correspondiente al digest HTML dado."""
+    md_name = html_filename.replace(".html", ".md")
+    return os.path.exists(os.path.join(DIGEST_DIR, md_name))
 
 
 def _e(s: str) -> str:
